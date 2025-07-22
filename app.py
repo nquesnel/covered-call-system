@@ -9,6 +9,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import os
 import sys
+import time
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -199,28 +200,44 @@ with st.sidebar:
     with col2:
         st.metric("CC Eligible", len(eligible_positions))
     
-    # Quick position list with account type update
+    # Quick position list
     if all_positions:
         st.markdown("**Your Holdings:**")
-        for symbol, pos in all_positions.items():
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                contracts = pos['shares'] // 100
-                st.text(f"{symbol}: {pos['shares']} shares ({contracts} contracts)")
-            with col2:
-                # Quick account type selector
-                account_types = ["taxable", "roth", "traditional"]
-                current_idx = account_types.index(pos.get('account_type', 'taxable'))
-                new_account = st.selectbox(
-                    "Account",
-                    account_types,
-                    index=current_idx,
-                    key=f"quick_account_{symbol}",
-                    label_visibility="collapsed"
+        
+        # Simple account type update section
+        with st.expander("🔄 Update Account Types", expanded=False):
+            st.write("Change account type for positions:")
+            
+            # Single position selector approach
+            position_to_update = st.selectbox(
+                "Select position to update:",
+                list(all_positions.keys()),
+                key="position_selector"
+            )
+            
+            if position_to_update:
+                current_account = all_positions[position_to_update].get('account_type', 'taxable')
+                st.write(f"Current account type for {position_to_update}: **{current_account.upper()}**")
+                
+                new_account_type = st.radio(
+                    f"Change to:",
+                    ["taxable", "roth", "traditional"],
+                    key="new_account_radio"
                 )
-                if new_account != pos.get('account_type', 'taxable'):
-                    pos_manager.update_position(symbol, account_type=new_account)
+                
+                if st.button("✅ Update Account Type", type="primary"):
+                    # Direct update
+                    pos_manager.positions[position_to_update]['account_type'] = new_account_type
+                    pos_manager.save_positions()
+                    st.success(f"✅ Updated {position_to_update} from {current_account} to {new_account_type}")
+                    time.sleep(1)  # Give user time to see the message
                     st.rerun()
+        
+        # Show current positions
+        for symbol, pos in all_positions.items():
+            contracts = pos['shares'] // 100
+            account = pos.get('account_type', 'taxable').upper()
+            st.text(f"{symbol}: {pos['shares']} shares ({contracts} contracts) - {account}")
     
     # Manual covered call entry
     with st.expander("📝 Record Covered Call", expanded=False):

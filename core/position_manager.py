@@ -36,8 +36,13 @@ class PositionManager:
     
     def save_positions(self):
         """Save positions to JSON file"""
-        with open(self.positions_file, 'w') as f:
-            json.dump(self.positions, f, indent=2)
+        try:
+            with open(self.positions_file, 'w') as f:
+                json.dump(self.positions, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Could not save positions to file: {e}")
+            # On Streamlit Cloud, file system may be read-only
+            # Positions will be stored in session state instead
     
     def add_position(self, symbol: str, shares: int, cost_basis: float, 
                     account_type: str = "taxable", notes: str = "") -> str:
@@ -72,6 +77,7 @@ class PositionManager:
             self.positions[symbol]['cost_basis'] = round(float(cost_basis), 2)
         if account_type is not None:
             self.positions[symbol]['account_type'] = account_type
+            print(f"DEBUG: Updated {symbol} account type to {account_type}")
         if notes is not None:
             self.positions[symbol]['notes'] = notes
             
