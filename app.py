@@ -326,12 +326,20 @@ def get_market_data(positions_tuple):
     positions_dict = dict(positions_tuple)
     market_data = {}
     
-    # Show progress bar while loading
-    progress_bar = st.progress(0)
-    for i, symbol in enumerate(positions_dict.keys()):
-        market_data[symbol] = data_fetcher.get_stock_data(symbol)
-        progress_bar.progress((i + 1) / len(positions_dict))
-    progress_bar.empty()
+    # Extract unique symbols from position keys
+    symbols = set()
+    for position_key in positions_dict.keys():
+        if isinstance(positions_dict[position_key], dict):
+            symbol = positions_dict[position_key].get('symbol', position_key.split('_')[0])
+            symbols.add(symbol)
+    
+    # Fetch data for each symbol
+    for symbol in symbols:
+        try:
+            market_data[symbol] = data_fetcher.get_stock_data(symbol)
+        except Exception as e:
+            print(f"Failed to fetch data for {symbol}: {e}")
+            market_data[symbol] = None
     
     return market_data
 
@@ -669,32 +677,41 @@ with tab2:
             if not isinstance(pos, dict):
                 continue  # Skip invalid positions
             symbol = pos.get('symbol', position_key.split('_')[0])
-            if symbol in market_data:
-                current_price = market_data[symbol].get('price', 0)
-                
+            
+            # Get market data if available, otherwise use cost basis
+            if symbol in market_data and market_data[symbol]:
+                current_price = market_data[symbol].get('price', pos.get('cost_basis', 0))
                 # Get growth analysis
                 growth_score = growth_analyzer.calculate_growth_score(symbol, market_data[symbol])
-                
-                # Calculate metrics
-                current_value = current_price * pos.get('shares', 0)
-                total_cost = pos.get('cost_basis', 0) * pos.get('shares', 0)
-                gain_loss = current_value - total_cost
-                gain_loss_pct = (gain_loss / total_cost * 100) if total_cost > 0 else 0
-                contracts = pos.get('shares', 0) // 100
-                
-                position_data.append({
-                    'Symbol': symbol,
-                    'Shares': pos.get('shares', 0),
-                    'Contracts': contracts,
-                    'Cost Basis': f"${pos.get('cost_basis', 0):.2f}",
-                    'Current': f"${current_price:.2f}",
-                    'Value': f"${current_value:,.0f}",
-                    'Gain/Loss': f"${gain_loss:,.0f}",
-                    'Gain %': f"{gain_loss_pct:+.1f}%",
-                    'Growth Score': growth_score['total_score'],
-                    'Strategy': growth_score['strategy']['strategy'],
-                    'Account': pos['account_type'].title()
-                })
+            else:
+                # Use cost basis as fallback if no market data
+                current_price = pos.get('cost_basis', 0)
+                # Use default growth score if no market data
+                growth_score = {
+                    'total_score': 50,
+                    'strategy': {'strategy': 'No Data'}
+                }
+            
+            # Calculate metrics
+            current_value = current_price * pos.get('shares', 0)
+            total_cost = pos.get('cost_basis', 0) * pos.get('shares', 0)
+            gain_loss = current_value - total_cost
+            gain_loss_pct = (gain_loss / total_cost * 100) if total_cost > 0 else 0
+            contracts = pos.get('shares', 0) // 100
+            
+            position_data.append({
+                'Symbol': symbol,
+                'Shares': pos.get('shares', 0),
+                'Contracts': contracts,
+                'Cost Basis': f"${pos.get('cost_basis', 0):.2f}",
+                'Current': f"${current_price:.2f}",
+                'Value': f"${current_value:,.0f}",
+                'Gain/Loss': f"${gain_loss:,.0f}",
+                'Gain %': f"{gain_loss_pct:+.1f}%",
+                'Growth Score': growth_score['total_score'],
+                'Strategy': growth_score['strategy']['strategy'],
+                'Account': pos['account_type'].title()
+            })
         
         df = pd.DataFrame(position_data)
         
