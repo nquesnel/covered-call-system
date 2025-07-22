@@ -125,6 +125,13 @@ with st.sidebar:
                 df = parser.format_for_import(extracted_positions)
                 st.dataframe(df, use_container_width=True)
                 
+                # Account type selection
+                account_type = st.selectbox(
+                    "Select account type for imported positions:",
+                    ["taxable", "roth", "traditional"],
+                    key="import_account_type"
+                )
+                
                 # Confirm and import
                 if st.button("✅ Import These Positions", type="primary"):
                     imported_count = 0
@@ -141,7 +148,7 @@ with st.sidebar:
                                 pos['symbol'],
                                 pos['shares'],
                                 cost_basis,
-                                'taxable',
+                                account_type,  # Use selected account type
                                 'Imported from screenshot'
                             )
                             imported_count += 1
@@ -252,10 +259,12 @@ with col4:
 
 with col5:
     capacity = pos_manager.get_covered_call_capacity()
-    total_contracts = sum(capacity.values())
+    total_available = sum(capacity.values())
+    active_trades = trade_tracker.get_active_trades()
+    total_written = sum(trade.get('contracts', 0) for trade in active_trades)
     st.metric(
-        "Available Contracts",
-        total_contracts,
+        "Contracts",
+        f"{total_available} avail / {total_written} written",
         f"{len(capacity)} positions"
     )
 
@@ -281,21 +290,21 @@ with tab1:
     with filter_col1:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            min_confidence = st.slider("Min Confidence", 50, 100, 70, key="confidence_slider")
+            min_confidence = st.slider("Min Confidence", 0, 100, 30, key="confidence_slider")
         with col2:
-            min_yield = st.slider("Min Monthly Yield %", 1.0, 10.0, 2.0, key="yield_slider")
+            min_yield = st.slider("Min Monthly Yield %", 0.5, 10.0, 1.0, key="yield_slider")
         with col3:
-            exclude_earnings = st.checkbox("Exclude Earnings", True, key="earnings_checkbox")
+            exclude_earnings = st.checkbox("Exclude Earnings", False, key="earnings_checkbox")
         with col4:
-            max_growth_score = st.slider("Max Growth Score", 25, 75, 50, key="growth_slider")
+            max_growth_score = st.slider("Max Growth Score", 25, 100, 75, key="growth_slider")
     
     with filter_col2:
         st.write("")  # Spacer
         if st.button("🔄 Reset Filters", type="secondary"):
-            st.session_state.confidence_slider = 70
-            st.session_state.yield_slider = 2.0
-            st.session_state.earnings_checkbox = True
-            st.session_state.growth_slider = 50
+            st.session_state.confidence_slider = 30
+            st.session_state.yield_slider = 1.0
+            st.session_state.earnings_checkbox = False
+            st.session_state.growth_slider = 75
             st.rerun()
     
     # Get opportunities

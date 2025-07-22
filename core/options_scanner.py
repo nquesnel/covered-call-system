@@ -14,11 +14,11 @@ class OptionsScanner:
         self.growth_analyzer = growth_analyzer
         
         # Minimum criteria for opportunities
-        self.MIN_IV_RANK = 50          # Only sell expensive options
-        self.MIN_VOLUME = 100          # Minimum daily volume
-        self.MAX_SPREAD_PCT = 0.10     # Max 10% bid-ask spread
-        self.MIN_OPEN_INTEREST = 50    # Minimum open interest
-        self.MIN_PREMIUM = 0.20        # Minimum $0.20 premium
+        self.MIN_IV_RANK = 30          # Lowered from 50 for more opportunities
+        self.MIN_VOLUME = 10           # Lowered for less liquid options
+        self.MAX_SPREAD_PCT = 0.15     # Allow wider spreads
+        self.MIN_OPEN_INTEREST = 10    # Lower minimum OI
+        self.MIN_PREMIUM = 0.10        # Lower minimum premium
         
         # Target parameters
         self.TARGET_DTE_MIN = 25       # Minimum days to expiration
