@@ -199,12 +199,28 @@ with st.sidebar:
     with col2:
         st.metric("CC Eligible", len(eligible_positions))
     
-    # Quick position list
+    # Quick position list with account type update
     if all_positions:
         st.markdown("**Your Holdings:**")
         for symbol, pos in all_positions.items():
-            contracts = pos['shares'] // 100
-            st.text(f"{symbol}: {pos['shares']} shares ({contracts} contracts)")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                contracts = pos['shares'] // 100
+                st.text(f"{symbol}: {pos['shares']} shares ({contracts} contracts)")
+            with col2:
+                # Quick account type selector
+                account_types = ["taxable", "roth", "traditional"]
+                current_idx = account_types.index(pos.get('account_type', 'taxable'))
+                new_account = st.selectbox(
+                    "Account",
+                    account_types,
+                    index=current_idx,
+                    key=f"quick_account_{symbol}",
+                    label_visibility="collapsed"
+                )
+                if new_account != pos.get('account_type', 'taxable'):
+                    pos_manager.update_position(symbol, account_type=new_account)
+                    st.rerun()
     
     # Manual covered call entry
     with st.expander("📝 Record Covered Call", expanded=False):
@@ -263,22 +279,30 @@ with st.sidebar:
             st.info("No eligible positions (need 100+ shares)")
 
 # Get current market data (mock for now)
-@st.cache_data(ttl=30)
-def get_market_data():
+@st.cache_data(ttl=300)  # Cache for 5 minutes instead of 30 seconds
+def get_market_data(positions_tuple):
     """Fetch current market data for all positions"""
-    # This would connect to real APIs
-    # For now, return mock data
+    # Convert tuple back to dict (for caching)
+    positions_dict = dict(positions_tuple)
     market_data = {}
-    for symbol in all_positions.keys():
+    
+    # Show progress bar while loading
+    progress_bar = st.progress(0)
+    for i, symbol in enumerate(positions_dict.keys()):
         market_data[symbol] = data_fetcher.get_stock_data(symbol)
+        progress_bar.progress((i + 1) / len(positions_dict))
+    progress_bar.empty()
+    
     return market_data
 
-@st.cache_data(ttl=30)
-def get_options_data():
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def get_options_data(positions_tuple):
     """Fetch options chains for all positions"""
+    positions_dict = dict(positions_tuple)
     options_data = {}
-    for symbol in eligible_positions.keys():
-        options_data[symbol] = data_fetcher.get_options_chain(symbol)
+    for symbol in positions_dict.keys():
+        if positions_dict[symbol]['shares'] >= 100:  # Only fetch for eligible positions
+            options_data[symbol] = data_fetcher.get_options_chain(symbol)
     return options_data
 
 # Main metrics row
@@ -373,8 +397,12 @@ with tab1:
     # Get opportunities
     if eligible_positions:
         with st.spinner("Scanning for opportunities..."):
-            market_data = get_market_data()
-            options_data = get_options_data()
+            # Convert to tuple for caching
+            positions_tuple = tuple(all_positions.items())
+            eligible_tuple = tuple(eligible_positions.items())
+            
+            market_data = get_market_data(positions_tuple)
+            options_data = get_options_data(eligible_tuple)
             
             opportunities = scanner.find_opportunities(market_data, options_data)
             
@@ -567,7 +595,8 @@ with tab2:
     
     if all_positions:
         # Get current prices
-        market_data = get_market_data()
+        positions_tuple = tuple(all_positions.items())
+        market_data = get_market_data(positions_tuple)
         
         # Calculate portfolio value
         portfolio_value = pos_manager.calculate_total_value(
@@ -1173,8 +1202,12 @@ with tab5:
     active_trades = trade_tracker.get_active_trades()
     
     if active_trades:
+        # Get market data for risk monitoring
+        positions_tuple = tuple(all_positions.items())
+        risk_market_data = get_market_data(positions_tuple)
+        
         # Get risk alerts
-        alerts = risk_manager.monitor_active_positions(active_trades, market_data)
+        alerts = risk_manager.monitor_active_positions(active_trades, risk_market_data)
         
         if alerts:
             st.error(f"🚨 {len(alerts)} Risk Alerts")
@@ -1188,7 +1221,7 @@ with tab5:
         
         risk_data = []
         for trade in active_trades:
-            risk_metrics = risk_manager.calculate_position_risk(trade, market_data)
+            risk_metrics = risk_manager.calculate_position_risk(trade, risk_market_data)
             risk_data.append({
                 'Symbol': trade['symbol'],
                 'Strike': f"${trade['strike']:.2f}",
