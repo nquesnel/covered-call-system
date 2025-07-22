@@ -351,3 +351,139 @@ class OptionsScanner:
                 best_by_symbol[symbol] = opp
         
         return best_by_symbol
+    
+    def generate_opportunity_commentary(self, opp: Dict) -> Dict[str, str]:
+        """Generate intelligent commentary about whether to take this opportunity"""
+        reasons_pro = []
+        reasons_con = []
+        
+        # Analyze IV Rank
+        if opp['iv_rank'] > 70:
+            reasons_pro.append("Very high IV rank (>70) - excellent premium collection opportunity")
+        elif opp['iv_rank'] > 50:
+            reasons_pro.append("Good IV rank (>50) - favorable for selling options")
+        elif opp['iv_rank'] < 30:
+            reasons_con.append("Low IV rank (<30) - premiums may not justify the risk")
+        
+        # Analyze yield
+        if opp['monthly_yield'] > 4:
+            reasons_pro.append(f"Exceptional monthly yield of {opp['monthly_yield']:.1f}%")
+        elif opp['monthly_yield'] > 2.5:
+            reasons_pro.append(f"Strong monthly yield of {opp['monthly_yield']:.1f}%")
+        elif opp['monthly_yield'] < 1.5:
+            reasons_con.append(f"Low monthly yield of {opp['monthly_yield']:.1f}% - consider passing")
+        
+        # Analyze win probability
+        if opp['win_probability'] > 80:
+            reasons_pro.append(f"High win probability ({opp['win_probability']:.0f}%) - likely to expire worthless")
+        elif opp['win_probability'] < 60:
+            reasons_con.append(f"Lower win probability ({opp['win_probability']:.0f}%) - higher assignment risk")
+        
+        # Analyze growth score
+        if opp['growth_score'] < 30:
+            reasons_pro.append("Low growth stock - ideal for covered calls")
+        elif opp['growth_score'] > 60:
+            reasons_con.append("High growth potential - consider protecting upside")
+        
+        # Check earnings
+        if opp.get('earnings_before_exp'):
+            reasons_con.append("⚠️ Earnings before expiration - increased volatility risk")
+        
+        # Analyze liquidity
+        if opp['volume'] < 100:
+            reasons_con.append("Low option volume - may have wide bid/ask spreads")
+        elif opp['volume'] > 1000:
+            reasons_pro.append("Excellent liquidity with high volume")
+        
+        # Generate recommendation
+        if len(reasons_pro) >= len(reasons_con) and opp['confidence_score'] > 70:
+            recommendation = "STRONG BUY"
+            action = "This is an excellent opportunity that aligns well with income generation goals."
+        elif len(reasons_pro) > len(reasons_con) and opp['confidence_score'] > 50:
+            recommendation = "BUY"
+            action = "Good opportunity with favorable risk/reward profile."
+        elif opp['confidence_score'] < 40 or len(reasons_con) > len(reasons_pro) + 1:
+            recommendation = "PASS"
+            action = "Consider passing - better opportunities may be available."
+        else:
+            recommendation = "NEUTRAL"
+            action = "Borderline opportunity - consider your risk tolerance and goals."
+        
+        # Special cases
+        if opp['strategy'] == 'PROTECT':
+            recommendation = "STRONG PASS"
+            action = "DO NOT sell calls on this high-growth position!"
+            reasons_con = ["This is a high-growth stock that should be protected from capping"]
+        
+        return {
+            'recommendation': recommendation,
+            'action': action,
+            'reasons_pro': reasons_pro,
+            'reasons_con': reasons_con,
+            'key_insight': self._get_key_insight(opp)
+        }
+    
+    def _get_key_insight(self, opp: Dict) -> str:
+        """Generate a key insight for this opportunity"""
+        # High confidence opportunities
+        if opp['confidence_score'] > 80 and opp['monthly_yield'] > 3:
+            return "📊 High-confidence income play with exceptional yield"
+        
+        # Post-earnings plays
+        if opp['iv_rank'] > 60 and opp.get('earnings_before_exp') is False:
+            return "📉 Post-earnings IV crush opportunity"
+        
+        # High yield plays
+        if opp['monthly_yield'] > 5:
+            return "💰 Premium collector's dream - exceptional yield"
+        
+        # Safe plays
+        if opp['win_probability'] > 85:
+            return "🛡️ Conservative income play with high win probability"
+        
+        # Growth protection needed
+        if opp['growth_score'] > 70:
+            return "🚀 Growth stock - be very selective with strikes"
+        
+        # Moderate opportunities
+        if opp['confidence_score'] > 60:
+            return "✅ Solid income opportunity with good risk/reward"
+        
+        return "📊 Standard covered call opportunity"
+    
+    def calculate_recommended_close_price(self, opp: Dict) -> Dict[str, float]:
+        """Calculate recommended close prices based on 21-50-7 rule"""
+        premium = opp['premium']
+        
+        # 50% profit target (main target)
+        close_at_50_pct = premium * 0.50
+        
+        # 25% profit target (conservative)
+        close_at_25_pct = premium * 0.75
+        
+        # 75% profit target (aggressive)
+        close_at_75_pct = premium * 0.25
+        
+        # Breakeven minus commission (emergency exit)
+        close_at_breakeven = premium * 0.95
+        
+        # Adjust based on DTE
+        if opp['days_to_exp'] <= 7:
+            primary_target = close_at_25_pct  # Take profits early when close to exp
+            note = "Close ASAP - high gamma risk (7 DTE rule)"
+        elif opp['days_to_exp'] <= 21:
+            primary_target = close_at_50_pct
+            note = "Standard 50% profit target (21 DTE checkpoint)"
+        else:
+            primary_target = close_at_50_pct
+            note = "Hold for 50% profit or until 21 DTE"
+        
+        return {
+            'primary_target': round(primary_target, 2),
+            'conservative_target': round(close_at_25_pct, 2),
+            'aggressive_target': round(close_at_75_pct, 2),
+            'breakeven': round(close_at_breakeven, 2),
+            'note': note,
+            'profit_at_target': round(premium - primary_target, 2),
+            'profit_pct_at_target': round((1 - primary_target/premium) * 100, 1)
+        }
