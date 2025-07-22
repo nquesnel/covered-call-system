@@ -95,9 +95,13 @@ with st.sidebar:
         )
         
         if uploaded_file is not None:
-            # Import screenshot parser
-            from utils.screenshot_parser import ScreenshotParser
-            parser = ScreenshotParser()
+            # Import screenshot parser with Claude
+            try:
+                from utils.screenshot_parser_claude import ScreenshotParserClaude
+                parser = ScreenshotParserClaude()
+            except ImportError:
+                from utils.screenshot_parser import ScreenshotParser
+                parser = ScreenshotParser()
             
             # Read image bytes
             image_bytes = uploaded_file.read()
