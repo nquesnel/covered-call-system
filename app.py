@@ -24,7 +24,8 @@ from core.options_scanner import OptionsScanner
 from core.whale_tracker import WhaleTracker
 try:
     from core.whale_flow_tracker import WhaleFlowTracker
-except ImportError:
+except Exception as e:
+    print(f"Warning: Could not import WhaleFlowTracker: {e}")
     WhaleFlowTracker = None
 from core.risk_manager import RiskManager
 try:
@@ -79,7 +80,7 @@ pos_manager = st.session_state.position_manager
 trade_tracker = st.session_state.trade_tracker
 growth_analyzer = st.session_state.growth_analyzer
 whale_tracker = st.session_state.whale_tracker
-whale_flow_tracker = st.session_state.whale_flow_tracker
+whale_flow_tracker = st.session_state.get('whale_flow_tracker', None)
 risk_manager = st.session_state.risk_manager
 data_fetcher = st.session_state.data_fetcher
 

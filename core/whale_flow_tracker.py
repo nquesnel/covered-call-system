@@ -12,8 +12,14 @@ class WhaleFlowTracker:
     
     def __init__(self, db_file: str = "data/whale_flows.db"):
         self.db_file = db_file
-        self._ensure_data_dir()
-        self.init_database()
+        try:
+            self._ensure_data_dir()
+            self.init_database()
+        except Exception as e:
+            print(f"Warning: Could not initialize whale flow database: {e}")
+            # Use in-memory database as fallback
+            self.db_file = ":memory:"
+            self.init_database()
     
     def _ensure_data_dir(self):
         """Create data directory if it doesn't exist"""
