@@ -348,9 +348,27 @@ def get_options_data(positions_tuple):
     """Fetch options chains for eligible positions"""
     positions_dict = dict(positions_tuple)
     options_data = {}
-    for symbol, position in positions_dict.items():
-        # Eligible positions are already filtered for 100+ shares
-        options_data[symbol] = data_fetcher.get_options_chain(symbol)
+    
+    # Extract unique symbols from position data
+    symbols = set()
+    for key, pos in positions_dict.items():
+        if isinstance(pos, dict):
+            symbol = pos.get('symbol', key)
+            symbols.add(symbol)
+        else:
+            symbols.add(key)
+    
+    # Fetch options for each symbol
+    for symbol in symbols:
+        try:
+            chain = data_fetcher.get_options_chain(symbol)
+            if chain:  # Only add if we got valid data
+                options_data[symbol] = chain
+        except Exception as e:
+            print(f"Failed to fetch options for {symbol}: {e}")
+            # Use mock data as fallback
+            options_data[symbol] = {}
+    
     return options_data
 
 # Main metrics row
@@ -453,6 +471,13 @@ with tab1:
             options_data = get_options_data(eligible_tuple)
             
             opportunities = scanner.find_opportunities(market_data, options_data)
+            
+            # Debug info
+            if st.checkbox("Show Debug Info", value=False):
+                st.write(f"Market data available for: {list(market_data.keys())}")
+                st.write(f"Options data available for: {list(options_data.keys())}")
+                st.write(f"Eligible positions: {list(eligible_positions.keys())}")
+                st.write(f"Total opportunities found before filters: {len(opportunities)}")
             
             # Apply filters
             filtered_opps = scanner.filter_by_criteria(
