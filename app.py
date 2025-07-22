@@ -154,7 +154,7 @@ with st.sidebar:
                             
                             pos_manager.add_position(
                                 pos['symbol'],
-                                pos['shares'],
+                                pos.get('shares', 0),
                                 cost_basis,
                                 account_type,  # Use selected account type
                                 'Imported from screenshot'
@@ -246,9 +246,10 @@ with st.sidebar:
         # Show current positions
         for position_key, pos in all_positions.items():
             symbol = pos.get('symbol', position_key.split('_')[0])  # Extract symbol from key
-            contracts = pos['shares'] // 100
+            contracts = pos.get('shares', 0) // 100
             account = pos.get('account_type', 'taxable').upper()
-            st.text(f"{symbol}: {pos['shares']} shares ({contracts} contracts) - {account}")
+            shares = pos.get('shares', 0)
+            st.text(f"{symbol}: {shares} shares ({contracts} contracts) - {account}")
     
     # Manual covered call entry
     with st.expander("📝 Record Covered Call", expanded=False):
@@ -257,7 +258,7 @@ with st.sidebar:
         # Only show positions with 100+ shares
         eligible_positions = {}
         for key, pos in all_positions.items():
-            if pos['shares'] >= 100:
+            if pos.get('shares', 0) >= 100:
                 symbol = pos.get('symbol', key.split('_')[0])
                 account = pos.get('account_type', 'taxable')
                 display_name = f"{symbol} ({account})"
@@ -600,8 +601,9 @@ with tab1:
                 """)
                 
                 for symbol, pos in eligible_positions.items():
-                    contracts = pos['shares'] // 100
-                    st.write(f"• **{symbol}**: {pos['shares']} shares ({contracts} contracts available)")
+                    shares = pos.get('shares', 0)
+                    contracts = shares // 100
+                    st.write(f"• **{symbol}**: {shares} shares ({contracts} contracts available)")
                 
                 st.markdown("""
                 **Remember:** The system only scans YOUR positions, not the entire market!
@@ -666,17 +668,17 @@ with tab2:
                 growth_score = growth_analyzer.calculate_growth_score(symbol, market_data[symbol])
                 
                 # Calculate metrics
-                current_value = current_price * pos['shares']
-                total_cost = pos['cost_basis'] * pos['shares']
+                current_value = current_price * pos.get('shares', 0)
+                total_cost = pos.get('cost_basis', 0) * pos.get('shares', 0)
                 gain_loss = current_value - total_cost
                 gain_loss_pct = (gain_loss / total_cost * 100) if total_cost > 0 else 0
-                contracts = pos['shares'] // 100
+                contracts = pos.get('shares', 0) // 100
                 
                 position_data.append({
                     'Symbol': symbol,
-                    'Shares': pos['shares'],
+                    'Shares': pos.get('shares', 0),
                     'Contracts': contracts,
-                    'Cost Basis': f"${pos['cost_basis']:.2f}",
+                    'Cost Basis': f"${pos.get('cost_basis', 0):.2f}",
                     'Current': f"${current_price:.2f}",
                     'Value': f"${current_value:,.0f}",
                     'Gain/Loss': f"${gain_loss:,.0f}",
@@ -726,14 +728,14 @@ with tab2:
                 with col1:
                     new_shares = st.number_input(
                         "Shares:", 
-                        value=pos['shares'],
+                        value=pos.get('shares', 0),
                         min_value=0,
                         step=100
                     )
                 with col2:
                     new_cost = st.number_input(
                         "Cost Basis:", 
-                        value=pos['cost_basis'],
+                        value=pos.get('cost_basis', 0),
                         min_value=0.01,
                         step=0.01
                     )
