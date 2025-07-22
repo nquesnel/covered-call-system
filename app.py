@@ -673,7 +673,7 @@ with tab4:
         # Flow cards
         st.subheader("Notable Flows")
         
-        for flow in whale_flows[:10]:  # Show top 10
+        for idx, flow in enumerate(whale_flows[:10]):  # Show top 10
             with st.container():
                 col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
                 
@@ -699,7 +699,7 @@ with tab4:
                         st.write(ft['recommendation'])
                         
                         if st.button(f"Follow with {ft['suggested_contracts']} contracts", 
-                                   key=f"follow_{flow['symbol']}_{flow['strike']}"):
+                                   key=f"follow_{flow['symbol']}_{flow['strike']}_{idx}"):
                             st.info(f"Track this trade: {flow['symbol']} ${flow['strike']} calls")
                     else:
                         st.warning("Not recommended for retail")
