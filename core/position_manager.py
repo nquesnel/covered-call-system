@@ -28,7 +28,17 @@ class PositionManager:
         if os.path.exists(self.positions_file):
             try:
                 with open(self.positions_file, 'r') as f:
-                    self.positions = json.load(f)
+                    loaded_data = json.load(f)
+                    # Validate that loaded data is a dictionary
+                    if isinstance(loaded_data, dict):
+                        # Validate each position
+                        validated_positions = {}
+                        for key, pos in loaded_data.items():
+                            if isinstance(pos, dict) and 'shares' in pos:
+                                validated_positions[key] = pos
+                        self.positions = validated_positions
+                    else:
+                        self.positions = {}
             except (json.JSONDecodeError, FileNotFoundError):
                 self.positions = {}
         else:

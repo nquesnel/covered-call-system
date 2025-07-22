@@ -245,11 +245,14 @@ with st.sidebar:
         
         # Show current positions
         for position_key, pos in all_positions.items():
-            symbol = pos.get('symbol', position_key.split('_')[0])  # Extract symbol from key
-            contracts = pos.get('shares', 0) // 100
-            account = pos.get('account_type', 'taxable').upper()
-            shares = pos.get('shares', 0)
-            st.text(f"{symbol}: {shares} shares ({contracts} contracts) - {account}")
+            if isinstance(pos, dict):
+                symbol = pos.get('symbol', position_key.split('_')[0])  # Extract symbol from key
+                contracts = pos.get('shares', 0) // 100
+                account = pos.get('account_type', 'taxable').upper()
+                shares = pos.get('shares', 0)
+                st.text(f"{symbol}: {shares} shares ({contracts} contracts) - {account}")
+            else:
+                st.text(f"{position_key}: Invalid position data")
     
     # Manual covered call entry
     with st.expander("📝 Record Covered Call", expanded=False):
@@ -601,9 +604,12 @@ with tab1:
                 """)
                 
                 for symbol, pos in eligible_positions.items():
-                    shares = pos.get('shares', 0)
-                    contracts = shares // 100
-                    st.write(f"• **{symbol}**: {shares} shares ({contracts} contracts available)")
+                    if isinstance(pos, dict):
+                        shares = pos.get('shares', 0)
+                        contracts = shares // 100
+                        st.write(f"• **{symbol}**: {shares} shares ({contracts} contracts available)")
+                    else:
+                        st.write(f"• **{symbol}**: Position data unavailable")
                 
                 st.markdown("""
                 **Remember:** The system only scans YOUR positions, not the entire market!
@@ -660,6 +666,8 @@ with tab2:
         # Position details table
         position_data = []
         for position_key, pos in all_positions.items():
+            if not isinstance(pos, dict):
+                continue  # Skip invalid positions
             symbol = pos.get('symbol', position_key.split('_')[0])
             if symbol in market_data:
                 current_price = market_data[symbol].get('price', 0)
