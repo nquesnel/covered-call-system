@@ -882,62 +882,62 @@ with tab4:
                 st.metric("Bearish", f"🔴 {summary['bearish_flows']}")
             with col4:
                 st.metric("Total Premium", f"${summary['total_premium']:,.0f}")
-        
-        # Flow cards
-        st.subheader("Notable Flows")
-        
-        for idx, flow in enumerate(whale_flows[:10]):  # Show top 10
-            with st.container():
-                col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
-                
-                with col1:
-                    sentiment_emoji = "🟢" if "BULL" in flow['sentiment'] else "🔴"
-                    st.markdown(f"### {sentiment_emoji} {flow['symbol']} - {flow['flow_type']}")
-                    st.write(f"**{flow['option_type'].upper()}** ${flow['strike']} exp {flow['expiration']}")
-                    st.write(f"Premium Volume: ${flow['total_premium']:,}")
-                
-                with col2:
-                    st.metric("Unusual Factor", f"{flow['unusual_factor']:.0f}x")
-                    st.write(f"Contracts: {flow['contracts']:,}")
-                
-                with col3:
-                    confidence_color = "🟢" if flow['smart_money_confidence'] > 80 else "🟡"
-                    st.metric("Confidence", f"{confidence_color} {flow['smart_money_confidence']}")
-                    st.write(f"Risk: {flow['risk_level']}")
-                
-                with col4:
-                    if flow['follow_trade']:
-                        ft = flow['follow_trade']
-                        st.success("✅ Follow Opportunity")
-                        st.write(ft['recommendation'])
-                        
-                        if st.button(f"Follow with {ft['suggested_contracts']} contracts", 
-                                   key=f"follow_{flow['symbol']}_{flow['strike']}_{idx}"):
-                            if whale_flow_tracker:
-                                # Record the follow
-                                flow_id = whale_flow_tracker.log_flow(flow)
-                                cost = ft['suggested_contracts'] * flow.get('premium_per_contract', 0) * 100
-                                whale_flow_tracker.record_follow(flow_id, ft['suggested_contracts'], cost)
-                                st.success(f"✅ Following {flow['symbol']} ${flow['strike']} calls with {ft['suggested_contracts']} contracts")
-                                st.rerun()
-                            else:
-                                st.info(f"Track this trade: {flow['symbol']} ${flow['strike']} calls")
-                    else:
-                        st.warning("Not recommended for retail")
-                
-                st.divider()
-        
-        # Educational section
-        with st.expander("📚 Learn from Success Stories"):
-            success_stories = whale_tracker.get_success_stories()
-            for story in success_stories:
-                st.markdown(f"**{story['date']} - {story['symbol']}**")
-                st.write(f"Setup: {story['setup']}")
-                st.write(f"Size: {story['size']}")
-                st.write(f"Result: {story['result']}")
-                st.success(f"Return: {story['return']}")
-                st.info(f"Lesson: {story['lesson']}")
-                st.divider()
+            
+            # Flow cards
+            st.subheader("Notable Flows")
+            
+            for idx, flow in enumerate(whale_flows[:10]):  # Show top 10
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
+                    
+                    with col1:
+                        sentiment_emoji = "🟢" if "BULL" in flow['sentiment'] else "🔴"
+                        st.markdown(f"### {sentiment_emoji} {flow['symbol']} - {flow['flow_type']}")
+                        st.write(f"**{flow['option_type'].upper()}** ${flow['strike']} exp {flow['expiration']}")
+                        st.write(f"Premium Volume: ${flow['total_premium']:,}")
+                    
+                    with col2:
+                        st.metric("Unusual Factor", f"{flow['unusual_factor']:.0f}x")
+                        st.write(f"Contracts: {flow['contracts']:,}")
+                    
+                    with col3:
+                        confidence_color = "🟢" if flow['smart_money_confidence'] > 80 else "🟡"
+                        st.metric("Confidence", f"{confidence_color} {flow['smart_money_confidence']}")
+                        st.write(f"Risk: {flow['risk_level']}")
+                    
+                    with col4:
+                        if flow['follow_trade']:
+                            ft = flow['follow_trade']
+                            st.success("✅ Follow Opportunity")
+                            st.write(ft['recommendation'])
+                            
+                            if st.button(f"Follow with {ft['suggested_contracts']} contracts", 
+                                       key=f"follow_{flow['symbol']}_{flow['strike']}_{idx}"):
+                                if whale_flow_tracker:
+                                    # Record the follow
+                                    flow_id = whale_flow_tracker.log_flow(flow)
+                                    cost = ft['suggested_contracts'] * flow.get('premium_per_contract', 0) * 100
+                                    whale_flow_tracker.record_follow(flow_id, ft['suggested_contracts'], cost)
+                                    st.success(f"✅ Following {flow['symbol']} ${flow['strike']} calls with {ft['suggested_contracts']} contracts")
+                                    st.rerun()
+                                else:
+                                    st.info(f"Track this trade: {flow['symbol']} ${flow['strike']} calls")
+                        else:
+                            st.warning("Not recommended for retail")
+                    
+                    st.divider()
+            
+            # Educational section
+            with st.expander("📚 Learn from Success Stories"):
+                success_stories = whale_tracker.get_success_stories()
+                for story in success_stories:
+                    st.markdown(f"**{story['date']} - {story['symbol']}**")
+                    st.write(f"Setup: {story['setup']}")
+                    st.write(f"Size: {story['size']}")
+                    st.write(f"Result: {story['result']}")
+                    st.success(f"Return: {story['return']}")
+                    st.info(f"Lesson: {story['lesson']}")
+                    st.divider()
         else:
             st.info("No significant whale flows detected today. Check back later.")
     
