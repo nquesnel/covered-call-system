@@ -1,0 +1,29 @@
+# Core dependencies
+streamlit>=1.28.0
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.15.0
+
+# Data and APIs
+yfinance>=0.2.28
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Database
+# sqlite3 is built-in with Python
+
+# Date/Time handling
+python-dateutil>=2.8.2
+
+# Optional: Broker APIs (uncomment as needed)
+# td-ameritrade-python-api>=0.3.0
+# ib_insync>=0.9.86  # Interactive Brokers
+
+# Optional: Advanced data sources
+# polygon-api-client>=1.12.0
+# alpaca-py>=0.13.0
+
+# Development tools
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0

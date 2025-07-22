@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: covered-call-system
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: true
+      - key: STREAMLIT_SERVER_ENABLE_CORS
+        value: false
+      # Add your API keys in Render dashboard
+      # - key: ANTHROPIC_API_KEY
+      #   sync: false
+      # - key: UNUSUAL_WHALES_API_KEY
+      #   sync: false
+      # - key: TD_AMERITRADE_API_KEY
+      #   sync: false

@@ -1,0 +1,292 @@
+"""
+Data Fetcher - Unified interface for market data APIs
+"""
+import os
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+import random  # For mock data
+
+
+class DataFetcher:
+    """Fetch market data from various sources"""
+    
+    def __init__(self):
+        # API keys (would be loaded from config)
+        self.yahoo_finance_api = None
+        self.td_ameritrade_api = None
+        self.unusual_whales_api = None
+        
+        # Cache settings
+        self.cache_duration = 30  # seconds
+        self.cache = {}
+        self.cache_timestamps = {}
+    
+    def get_stock_data(self, symbol: str) -> Dict:
+        """Get current stock data including price, volume, technicals"""
+        # Check cache
+        if self._is_cached(f"stock_{symbol}"):
+            return self.cache[f"stock_{symbol}"]
+        
+        # In production, this would call real APIs
+        # For now, return mock data
+        data = self._generate_mock_stock_data(symbol)
+        
+        # Cache the result
+        self._cache_data(f"stock_{symbol}", data)
+        
+        return data
+    
+    def get_options_chain(self, symbol: str) -> Dict:
+        """Get options chain data for a symbol"""
+        # Check cache
+        cache_key = f"options_{symbol}"
+        if self._is_cached(cache_key):
+            return self.cache[cache_key]
+        
+        # Generate mock options chain
+        chain = self._generate_mock_options_chain(symbol)
+        
+        # Cache the result
+        self._cache_data(cache_key, chain)
+        
+        return chain
+    
+    def get_whale_flows(self, min_premium: float = 50000) -> List[Dict]:
+        """Get institutional option flows"""
+        # In production, this would call Unusual Whales API
+        # For now, return mock whale flows
+        
+        if self._is_cached("whale_flows"):
+            return self.cache["whale_flows"]
+        
+        flows = self._generate_mock_whale_flows()
+        self._cache_data("whale_flows", flows)
+        
+        return flows
+    
+    def get_iv_data(self, symbol: str) -> Dict:
+        """Get implied volatility data"""
+        # Mock IV data
+        return {
+            'current_iv': random.uniform(20, 80),
+            'iv_rank': random.uniform(10, 90),
+            'iv_percentile': random.uniform(10, 90),
+            'hv_20': random.uniform(15, 60),
+            'hv_30': random.uniform(15, 65),
+            'iv_high_52w': random.uniform(60, 120),
+            'iv_low_52w': random.uniform(10, 30)
+        }
+    
+    def _is_cached(self, key: str) -> bool:
+        """Check if data is cached and still valid"""
+        if key not in self.cache_timestamps:
+            return False
+        
+        age = (datetime.now() - self.cache_timestamps[key]).total_seconds()
+        return age < self.cache_duration
+    
+    def _cache_data(self, key: str, data: any):
+        """Cache data with timestamp"""
+        self.cache[key] = data
+        self.cache_timestamps[key] = datetime.now()
+    
+    def _generate_mock_stock_data(self, symbol: str) -> Dict:
+        """Generate realistic mock stock data"""
+        # Base prices for some symbols
+        base_prices = {
+            'AAPL': 195.0,
+            'TSLA': 200.0,
+            'PLTR': 25.0,
+            'MGNI': 15.0,
+            'SPY': 450.0,
+            'QQQ': 380.0
+        }
+        
+        base_price = base_prices.get(symbol, random.uniform(20, 200))
+        price = base_price * random.uniform(0.95, 1.05)
+        
+        return {
+            'symbol': symbol,
+            'price': round(price, 2),
+            'bid': round(price - 0.01, 2),
+            'ask': round(price + 0.01, 2),
+            'volume': random.randint(1000000, 50000000),
+            'avg_volume_10d': random.randint(1000000, 40000000),
+            'avg_volume_50d': random.randint(1000000, 35000000),
+            'open': round(price * random.uniform(0.98, 1.02), 2),
+            'high': round(price * random.uniform(1.0, 1.03), 2),
+            'low': round(price * random.uniform(0.97, 1.0), 2),
+            'prev_close': round(price * random.uniform(0.98, 1.02), 2),
+            
+            # Technical indicators
+            'ma_50': round(price * random.uniform(0.95, 1.05), 2),
+            'ma_200': round(price * random.uniform(0.90, 1.10), 2),
+            'rsi': random.uniform(20, 80),
+            'macd': random.uniform(-2, 2),
+            'macd_signal': random.uniform(-2, 2),
+            
+            # Volatility
+            'volatility_30d': random.uniform(20, 60),
+            'beta': random.uniform(0.5, 2.0),
+            'iv_rank': random.uniform(10, 90),
+            
+            # Fundamentals (mock)
+            'pe_ratio': random.uniform(10, 50),
+            'revenue_growth_yoy': random.uniform(-20, 100),
+            'earnings_growth_yoy': random.uniform(-30, 150),
+            'analyst_rating': random.uniform(1, 5),
+            
+            # Dates
+            'next_earnings_date': (datetime.now() + timedelta(days=random.randint(5, 60))).strftime('%Y-%m-%d'),
+            'ex_dividend_date': (datetime.now() + timedelta(days=random.randint(30, 90))).strftime('%Y-%m-%d'),
+            
+            # Sentiment
+            'institutional_ownership_change': random.uniform(-10, 10),
+            'options_sentiment': random.choice(['very_bullish', 'bullish', 'neutral', 'bearish']),
+            'social_sentiment_score': random.uniform(10, 90),
+            
+            # Price changes
+            'price_change_1d': random.uniform(-3, 3),
+            'price_change_1w': random.uniform(-5, 5),
+            'price_change_1m': random.uniform(-10, 10),
+            'price_change_3m': random.uniform(-20, 20),
+            'price_change_1y': random.uniform(-30, 50)
+        }
+    
+    def _generate_mock_options_chain(self, symbol: str) -> Dict:
+        """Generate mock options chain data"""
+        stock_data = self.get_stock_data(symbol)
+        current_price = stock_data['price']
+        
+        chain = {}
+        
+        # Generate expirations (weekly for next 8 weeks)
+        for weeks_out in range(1, 9):
+            exp_date = datetime.now() + timedelta(weeks=weeks_out)
+            # Options expire on Fridays
+            days_until_friday = (4 - exp_date.weekday()) % 7
+            if days_until_friday == 0 and exp_date.hour > 16:
+                days_until_friday = 7
+            exp_date = exp_date + timedelta(days=days_until_friday)
+            exp_str = exp_date.strftime('%Y-%m-%d')
+            
+            chain[exp_str] = {}
+            
+            # Generate strikes around current price
+            strike_increment = 1 if current_price < 50 else 5 if current_price < 200 else 10
+            min_strike = int(current_price * 0.85 / strike_increment) * strike_increment
+            max_strike = int(current_price * 1.15 / strike_increment) * strike_increment
+            
+            for strike in range(min_strike, max_strike + strike_increment, strike_increment):
+                # Calculate option prices (simplified Black-Scholes approximation)
+                dte = (exp_date - datetime.now()).days
+                otm_percent = max(0, (strike - current_price) / current_price)
+                
+                # Base premium calculation
+                time_value = (dte / 365) ** 0.5
+                volatility_component = stock_data['volatility_30d'] / 100
+                base_premium = current_price * volatility_component * time_value * 0.4
+                
+                # Adjust for moneyness
+                if strike < current_price:  # ITM
+                    intrinsic = current_price - strike
+                    premium = intrinsic + base_premium * 0.3
+                else:  # OTM
+                    premium = base_premium * max(0.1, 1 - otm_percent * 5)
+                
+                # Ensure minimum premium
+                premium = max(0.05, round(premium, 2))
+                
+                # Generate bid/ask
+                spread_pct = 0.05 if premium > 1 else 0.10
+                bid = round(premium * (1 - spread_pct/2), 2)
+                ask = round(premium * (1 + spread_pct/2), 2)
+                
+                # Generate volume and OI
+                volume = random.randint(10, 5000) if abs(strike - current_price) / current_price < 0.1 else random.randint(0, 500)
+                open_interest = random.randint(100, 10000) if abs(strike - current_price) / current_price < 0.1 else random.randint(10, 1000)
+                
+                # Calculate greeks (simplified)
+                delta = max(0.01, min(0.99, 1 - otm_percent * 2)) if strike >= current_price else 0.5 + (current_price - strike) / current_price * 0.4
+                
+                chain[exp_str][strike] = {
+                    'strike': strike,
+                    'expiration': exp_str,
+                    'bid': bid,
+                    'ask': ask,
+                    'last': premium,
+                    'volume': volume,
+                    'open_interest': open_interest,
+                    'implied_volatility': stock_data['volatility_30d'] / 100 * random.uniform(0.8, 1.2),
+                    'delta': round(delta, 3),
+                    'gamma': round(random.uniform(0.001, 0.05), 3),
+                    'theta': round(-premium / dte * random.uniform(0.5, 1.5), 3),
+                    'vega': round(random.uniform(0.01, 0.1), 3),
+                    'iv_rank': stock_data['iv_rank'] + random.uniform(-10, 10),
+                    'iv_percentile': stock_data['iv_rank'] + random.uniform(-5, 5)
+                }
+        
+        return chain
+    
+    def _generate_mock_whale_flows(self) -> List[Dict]:
+        """Generate mock whale flow data"""
+        symbols = ['AAPL', 'TSLA', 'SPY', 'QQQ', 'NVDA', 'AMD', 'PLTR', 'GME', 'AMC', 'SOFI']
+        flows = []
+        
+        for _ in range(random.randint(5, 15)):
+            symbol = random.choice(symbols)
+            stock_price = self.get_stock_data(symbol)['price']
+            
+            # Generate whale-like flow
+            option_type = random.choice(['call', 'put'])
+            trade_type = random.choice(['sweep', 'block', 'split_block'])
+            
+            # Strike selection
+            if option_type == 'call':
+                strike = round(stock_price * random.uniform(1.0, 1.20), 0)
+            else:
+                strike = round(stock_price * random.uniform(0.80, 1.0), 0)
+            
+            # Expiration
+            days_out = random.choice([7, 14, 21, 28, 35, 42])
+            exp_date = datetime.now() + timedelta(days=days_out)
+            
+            # Premium and size
+            premium = random.uniform(0.10, 2.00)
+            contracts = random.randint(1000, 50000)
+            premium_volume = premium * contracts * 100
+            
+            # Only include if it meets whale criteria
+            if premium_volume < 50000:
+                continue
+            
+            avg_volume = random.randint(100, 2000)
+            unusual_factor = contracts / avg_volume
+            
+            flow = {
+                'timestamp': datetime.now().isoformat(),
+                'symbol': symbol,
+                'underlying_price': stock_price,
+                'trade_type': trade_type,
+                'option_type': option_type,
+                'strike': strike,
+                'expiration': exp_date.strftime('%Y-%m-%d'),
+                'days_to_exp': days_out,
+                'volume': contracts,
+                'premium': premium,
+                'premium_volume': premium_volume,
+                'avg_volume': avg_volume,
+                'open_interest': random.randint(1000, 50000),
+                'bid': premium - 0.05,
+                'ask': premium + 0.05,
+                'implied_volatility': random.uniform(0.3, 1.5),
+                'unusual_factor': unusual_factor
+            }
+            
+            # Add to flows
+            flows.append(flow)
+        
+        # Sort by premium volume
+        flows.sort(key=lambda x: x['premium_volume'], reverse=True)
+        
+        return flows
