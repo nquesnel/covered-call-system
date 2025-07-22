@@ -349,25 +349,25 @@ def get_options_data(positions_tuple):
     positions_dict = dict(positions_tuple)
     options_data = {}
     
-    # Extract unique symbols from position data
-    symbols = set()
-    for key, pos in positions_dict.items():
-        if isinstance(pos, dict):
-            symbol = pos.get('symbol', key)
-            symbols.add(symbol)
-        else:
-            symbols.add(key)
-    
-    # Fetch options for each symbol
-    for symbol in symbols:
+    # The positions_dict here has symbols as keys when coming from eligible_positions
+    for symbol, position in positions_dict.items():
         try:
             chain = data_fetcher.get_options_chain(symbol)
             if chain:  # Only add if we got valid data
                 options_data[symbol] = chain
+            else:
+                # Create mock data if no real data available
+                from core.options_scanner import OptionsScanner
+                scanner = OptionsScanner(None, None)
+                mock_price = position.get('cost_basis', 100)
+                options_data[symbol] = scanner._create_mock_options_chain(symbol, {'price': mock_price})
         except Exception as e:
             print(f"Failed to fetch options for {symbol}: {e}")
-            # Use mock data as fallback
-            options_data[symbol] = {}
+            # Create mock data as fallback
+            from core.options_scanner import OptionsScanner
+            scanner = OptionsScanner(None, None)
+            mock_price = position.get('cost_basis', 100)
+            options_data[symbol] = scanner._create_mock_options_chain(symbol, {'price': mock_price})
     
     return options_data
 
