@@ -15,6 +15,7 @@ class PositionManager:
         self.positions = {}
         self._ensure_data_dir()
         self.load_positions()
+        self._migrate_positions_if_needed()
     
     def _ensure_data_dir(self):
         """Create data directory if it doesn't exist"""
@@ -34,6 +35,28 @@ class PositionManager:
             self.positions = {}
             self.save_positions()
     
+    def _migrate_positions_if_needed(self):
+        """Migrate old symbol-only keys to symbol_account format"""
+        needs_migration = False
+        migrated_positions = {}
+        
+        for key, position in self.positions.items():
+            # Check if this is an old-style key (no underscore)
+            if '_' not in key and isinstance(position, dict) and 'symbol' in position:
+                # This is an old position, migrate it
+                account_type = position.get('account_type', 'taxable')
+                new_key = f"{position['symbol']}_{account_type.upper()}"
+                position['position_key'] = new_key
+                migrated_positions[new_key] = position
+                needs_migration = True
+            else:
+                # Keep existing positions as-is
+                migrated_positions[key] = position
+        
+        if needs_migration:
+            self.positions = migrated_positions
+            self.save_positions()
+    
     def save_positions(self):
         """Save positions to JSON file"""
         try:
@@ -49,50 +72,76 @@ class PositionManager:
         """Add new stock position"""
         symbol = symbol.upper()
         
+        # Create composite key: SYMBOL_ACCOUNT
+        position_key = f"{symbol}_{account_type.upper()}"
+        
+        # Check if this exact position already exists
+        if position_key in self.positions:
+            # Update existing position by adding shares
+            existing_shares = self.positions[position_key]['shares']
+            self.positions[position_key]['shares'] = existing_shares + int(shares)
+            self.save_positions()
+            return f"Added {shares} more shares to existing {symbol} position in {account_type} account"
+        
         position = {
             'symbol': symbol,
             'shares': int(shares),
             'cost_basis': round(float(cost_basis), 2),
             'account_type': account_type,
             'date_added': datetime.now().isoformat(),
-            'notes': notes
+            'notes': notes,
+            'position_key': position_key
         }
         
-        self.positions[symbol] = position
+        self.positions[position_key] = position
         self.save_positions()
-        return f"Added {shares} shares of {symbol} at ${cost_basis:.2f}"
+        return f"Added {shares} shares of {symbol} at ${cost_basis:.2f} in {account_type} account"
     
-    def update_position(self, symbol: str, shares: Optional[int] = None, 
+    def update_position(self, position_key: str, shares: Optional[int] = None, 
                        cost_basis: Optional[float] = None, account_type: Optional[str] = None,
                        notes: Optional[str] = None) -> str:
-        """Update existing position"""
-        symbol = symbol.upper()
+        """Update existing position using position key"""
         
-        if symbol not in self.positions:
-            return f"Position {symbol} not found"
+        if position_key not in self.positions:
+            return f"Position {position_key} not found"
         
         if shares is not None:
-            self.positions[symbol]['shares'] = int(shares)
+            self.positions[position_key]['shares'] = int(shares)
         if cost_basis is not None:
-            self.positions[symbol]['cost_basis'] = round(float(cost_basis), 2)
+            self.positions[position_key]['cost_basis'] = round(float(cost_basis), 2)
         if account_type is not None:
-            self.positions[symbol]['account_type'] = account_type
-            print(f"DEBUG: Updated {symbol} account type to {account_type}")
+            # If changing account type, we need to create new key and move position
+            old_account = self.positions[position_key]['account_type']
+            if account_type != old_account:
+                symbol = self.positions[position_key]['symbol']
+                new_key = f"{symbol}_{account_type.upper()}"
+                
+                # Move position to new key
+                self.positions[new_key] = self.positions[position_key].copy()
+                self.positions[new_key]['account_type'] = account_type
+                self.positions[new_key]['position_key'] = new_key
+                
+                # Delete old position
+                del self.positions[position_key]
+                position_key = new_key
+            
+            print(f"DEBUG: Updated position to account type {account_type}")
         if notes is not None:
-            self.positions[symbol]['notes'] = notes
+            self.positions[position_key]['notes'] = notes
             
         self.save_positions()
-        return f"Updated {symbol} position"
+        return f"Updated position"
     
-    def delete_position(self, symbol: str) -> str:
-        """Remove position entirely"""
-        symbol = symbol.upper()
+    def delete_position(self, position_key: str) -> str:
+        """Remove position entirely using position key"""
         
-        if symbol in self.positions:
-            del self.positions[symbol]
+        if position_key in self.positions:
+            symbol = self.positions[position_key]['symbol']
+            account = self.positions[position_key]['account_type']
+            del self.positions[position_key]
             self.save_positions()
-            return f"Deleted {symbol} position"
-        return f"Position {symbol} not found"
+            return f"Deleted {symbol} position from {account} account"
+        return f"Position {position_key} not found"
     
     def get_position(self, symbol: str) -> Optional[Dict]:
         """Get single position details"""
@@ -103,11 +152,30 @@ class PositionManager:
         return self.positions.copy()
     
     def get_eligible_positions(self, min_shares: int = 100) -> Dict:
-        """Return positions with enough shares for covered calls"""
+        """Return positions with enough shares for covered calls - grouped by symbol"""
         eligible = {}
-        for symbol, pos in self.positions.items():
-            if pos['shares'] >= min_shares:
-                eligible[symbol] = pos
+        # Group by symbol and combine shares across accounts
+        symbol_positions = {}
+        
+        for key, pos in self.positions.items():
+            symbol = pos.get('symbol', key.split('_')[0])
+            if symbol not in symbol_positions:
+                # Use the first position's data as base
+                symbol_positions[symbol] = pos.copy()
+                symbol_positions[symbol]['position_keys'] = [key]
+            else:
+                # Combine shares from multiple accounts
+                symbol_positions[symbol]['shares'] += pos['shares']
+                symbol_positions[symbol]['position_keys'].append(key)
+                # Mark as multi-account
+                if pos['account_type'] != symbol_positions[symbol]['account_type']:
+                    symbol_positions[symbol]['account_type'] = 'multiple'
+        
+        # Filter for eligible positions
+        for symbol, combined_pos in symbol_positions.items():
+            if combined_pos['shares'] >= min_shares:
+                eligible[symbol] = combined_pos
+                
         return eligible
     
     def get_positions_by_account(self, account_type: str) -> Dict:

@@ -208,16 +208,26 @@ with st.sidebar:
         with st.expander("🔄 Update Account Types", expanded=False):
             st.write("Change account type for positions:")
             
-            # Single position selector approach
-            position_to_update = st.selectbox(
+            # Single position selector approach - show symbol and account
+            position_options = {}
+            for key, pos in all_positions.items():
+                symbol = pos.get('symbol', key.split('_')[0])
+                account = pos.get('account_type', 'taxable')
+                display_name = f"{symbol} ({account})"
+                position_options[display_name] = key
+            
+            selected_display = st.selectbox(
                 "Select position to update:",
-                list(all_positions.keys()),
+                list(position_options.keys()),
                 key="position_selector"
             )
             
-            if position_to_update:
-                current_account = all_positions[position_to_update].get('account_type', 'taxable')
-                st.write(f"Current account type for {position_to_update}: **{current_account.upper()}**")
+            if selected_display:
+                position_to_update = position_options[selected_display]
+                pos = all_positions[position_to_update]
+                symbol = pos.get('symbol', position_to_update.split('_')[0])
+                current_account = pos.get('account_type', 'taxable')
+                st.write(f"Current account type for {symbol}: **{current_account.upper()}**")
                 
                 new_account_type = st.radio(
                     f"Change to:",
@@ -234,7 +244,8 @@ with st.sidebar:
                     st.rerun()
         
         # Show current positions
-        for symbol, pos in all_positions.items():
+        for position_key, pos in all_positions.items():
+            symbol = pos.get('symbol', position_key.split('_')[0])  # Extract symbol from key
             contracts = pos['shares'] // 100
             account = pos.get('account_type', 'taxable').upper()
             st.text(f"{symbol}: {pos['shares']} shares ({contracts} contracts) - {account}")
@@ -244,17 +255,25 @@ with st.sidebar:
         st.write("Manually record a covered call you've written")
         
         # Only show positions with 100+ shares
-        eligible_symbols = [s for s, p in all_positions.items() if p['shares'] >= 100]
+        eligible_positions = {}
+        for key, pos in all_positions.items():
+            if pos['shares'] >= 100:
+                symbol = pos.get('symbol', key.split('_')[0])
+                account = pos.get('account_type', 'taxable')
+                display_name = f"{symbol} ({account})"
+                eligible_positions[display_name] = (key, pos)
         
-        if eligible_symbols:
+        if eligible_positions:
             col1, col2 = st.columns(2)
             with col1:
-                cc_symbol = st.selectbox("Symbol", eligible_symbols, key="cc_symbol")
+                selected_position = st.selectbox("Position", list(eligible_positions.keys()), key="cc_position")
+                position_key, position_data = eligible_positions[selected_position]
+                cc_symbol = position_data.get('symbol', position_key.split('_')[0])
                 cc_strike = st.number_input("Strike Price", min_value=0.01, step=0.01, key="cc_strike")
                 cc_contracts = st.number_input(
                     "Contracts", 
                     min_value=1, 
-                    max_value=all_positions[cc_symbol]['shares'] // 100 if cc_symbol in all_positions else 1,
+                    max_value=position_data['shares'] // 100,
                     key="cc_contracts"
                 )
             with col2:
@@ -638,7 +657,8 @@ with tab2:
         
         # Position details table
         position_data = []
-        for symbol, pos in all_positions.items():
+        for position_key, pos in all_positions.items():
+            symbol = pos.get('symbol', position_key.split('_')[0])
             if symbol in market_data:
                 current_price = market_data[symbol].get('price', 0)
                 
@@ -688,10 +708,19 @@ with tab2:
         
         # Position management
         with st.expander("🔧 Manage Positions"):
-            edit_symbol = st.selectbox("Select position to edit:", list(all_positions.keys()))
+            # Create display options for position editing
+            edit_options = {}
+            for key, pos in all_positions.items():
+                symbol = pos.get('symbol', key.split('_')[0])
+                account = pos.get('account_type', 'taxable')
+                display_name = f"{symbol} ({account})"
+                edit_options[display_name] = key
             
-            if edit_symbol:
-                pos = all_positions[edit_symbol]
+            selected_edit_display = st.selectbox("Select position to edit:", list(edit_options.keys()))
+            edit_position_key = edit_options[selected_edit_display] if selected_edit_display else None
+            
+            if edit_position_key:
+                pos = all_positions[edit_position_key]
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
@@ -715,20 +744,22 @@ with tab2:
                         "Account Type:",
                         ["taxable", "roth", "traditional"],
                         index=["taxable", "roth", "traditional"].index(current_account),
-                        key=f"account_type_{edit_symbol}"
+                        key=f"account_type_{edit_position_key}"
                     )
                 with col4:
                     st.write("") # Spacer
                     if st.button("Update Position"):
                         # Update the position with new account type
-                        pos_manager.update_position(edit_symbol, new_shares, new_cost, new_account_type)
-                        st.success(f"Updated {edit_symbol}")
+                        pos_manager.update_position(edit_position_key, new_shares, new_cost, new_account_type)
+                        symbol = pos.get('symbol', edit_position_key.split('_')[0])
+                        st.success(f"Updated {symbol}")
                         st.rerun()
                 
                 if st.button("🗑️ Delete Position", type="secondary"):
                     if st.checkbox("Confirm deletion"):
-                        pos_manager.delete_position(edit_symbol)
-                        st.success(f"Deleted {edit_symbol}")
+                        symbol = pos.get('symbol', edit_position_key.split('_')[0])
+                        pos_manager.delete_position(edit_position_key)
+                        st.success(f"Deleted {symbol}")
                         st.rerun()
     else:
         st.info("No positions added yet. Use the sidebar to add your first position.")
