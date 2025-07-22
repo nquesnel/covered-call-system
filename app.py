@@ -333,12 +333,12 @@ def get_market_data(positions_tuple):
 
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_options_data(positions_tuple):
-    """Fetch options chains for all positions"""
+    """Fetch options chains for eligible positions"""
     positions_dict = dict(positions_tuple)
     options_data = {}
-    for symbol in positions_dict.keys():
-        if positions_dict[symbol]['shares'] >= 100:  # Only fetch for eligible positions
-            options_data[symbol] = data_fetcher.get_options_chain(symbol)
+    for symbol, position in positions_dict.items():
+        # Eligible positions are already filtered for 100+ shares
+        options_data[symbol] = data_fetcher.get_options_chain(symbol)
     return options_data
 
 # Main metrics row
