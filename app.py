@@ -73,7 +73,7 @@ if 'position_manager' not in st.session_state:
     st.session_state.trade_tracker = TradeTracker()
     st.session_state.growth_analyzer = GrowthAnalyzer()
     st.session_state.whale_tracker = WhaleTracker()
-enhanced_whale_tracker = EnhancedWhaleTracker()
+    st.session_state.enhanced_whale_tracker = EnhancedWhaleTracker()
     st.session_state.whale_flow_tracker = WhaleFlowTracker() if WhaleFlowTracker else None
     st.session_state.risk_manager = RiskManager()
     st.session_state.data_fetcher = DataFetcher()
@@ -83,6 +83,7 @@ pos_manager = st.session_state.position_manager
 trade_tracker = st.session_state.trade_tracker
 growth_analyzer = st.session_state.growth_analyzer
 whale_tracker = st.session_state.whale_tracker
+enhanced_whale_tracker = st.session_state.enhanced_whale_tracker
 whale_flow_tracker = st.session_state.get('whale_flow_tracker', None)
 risk_manager = st.session_state.risk_manager
 data_fetcher = st.session_state.data_fetcher
@@ -1018,7 +1019,7 @@ with tab4:
         whale_flows = whale_tracker.detect_institutional_flows(raw_flows)
         
         # Enhance with advanced analysis
-        enhanced_flows = enhanced_whale_tracker.rank_whale_flows(whale_flows)
+        enhanced_flows = st.session_state.enhanced_whale_tracker.rank_whale_flows(whale_flows)
         
         if whale_flows and whale_flow_tracker:
             # Log all flows to history
