@@ -647,7 +647,7 @@ with tab2:
             if edit_symbol:
                 pos = all_positions[edit_symbol]
                 
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     new_shares = st.number_input(
                         "Shares:", 
@@ -663,9 +663,19 @@ with tab2:
                         step=0.01
                     )
                 with col3:
+                    # Add account type selector
+                    current_account = pos.get('account_type', 'taxable')
+                    new_account_type = st.selectbox(
+                        "Account Type:",
+                        ["taxable", "roth", "traditional"],
+                        index=["taxable", "roth", "traditional"].index(current_account),
+                        key=f"account_type_{edit_symbol}"
+                    )
+                with col4:
                     st.write("") # Spacer
                     if st.button("Update Position"):
-                        pos_manager.update_position(edit_symbol, new_shares, new_cost)
+                        # Update the position with new account type
+                        pos_manager.update_position(edit_symbol, new_shares, new_cost, new_account_type)
                         st.success(f"Updated {edit_symbol}")
                         st.rerun()
                 

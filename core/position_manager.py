@@ -58,7 +58,8 @@ class PositionManager:
         return f"Added {shares} shares of {symbol} at ${cost_basis:.2f}"
     
     def update_position(self, symbol: str, shares: Optional[int] = None, 
-                       cost_basis: Optional[float] = None, notes: Optional[str] = None) -> str:
+                       cost_basis: Optional[float] = None, account_type: Optional[str] = None,
+                       notes: Optional[str] = None) -> str:
         """Update existing position"""
         symbol = symbol.upper()
         
@@ -69,6 +70,8 @@ class PositionManager:
             self.positions[symbol]['shares'] = int(shares)
         if cost_basis is not None:
             self.positions[symbol]['cost_basis'] = round(float(cost_basis), 2)
+        if account_type is not None:
+            self.positions[symbol]['account_type'] = account_type
         if notes is not None:
             self.positions[symbol]['notes'] = notes
             
