@@ -259,19 +259,19 @@ with st.sidebar:
         st.write("Manually record a covered call you've written")
         
         # Only show positions with 100+ shares
-        eligible_positions = {}
+        eligible_for_cc = {}
         for key, pos in all_positions.items():
             if pos.get('shares', 0) >= 100:
                 symbol = pos.get('symbol', key.split('_')[0])
                 account = pos.get('account_type', 'taxable')
                 display_name = f"{symbol} ({account})"
-                eligible_positions[display_name] = (key, pos)
+                eligible_for_cc[display_name] = (key, pos)
         
-        if eligible_positions:
+        if eligible_for_cc:
             col1, col2 = st.columns(2)
             with col1:
-                selected_position = st.selectbox("Position", list(eligible_positions.keys()), key="cc_position")
-                position_key, position_data = eligible_positions[selected_position]
+                selected_position = st.selectbox("Position", list(eligible_for_cc.keys()), key="cc_position")
+                position_key, position_data = eligible_for_cc[selected_position]
                 cc_symbol = position_data.get('symbol', position_key.split('_')[0])
                 cc_strike = st.number_input("Strike Price", min_value=0.01, step=0.01, key="cc_strike")
                 cc_contracts = st.number_input(
@@ -460,12 +460,13 @@ with tab1:
             st.session_state.growth_slider = 75
             st.rerun()
     
-    # Get opportunities
-    if eligible_positions:
+    # Get opportunities - using scanner's eligible positions
+    scanner_eligible = pos_manager.get_eligible_positions()  # Get fresh eligible positions
+    if scanner_eligible:
         with st.spinner("Scanning for opportunities..."):
             # Convert to tuple for caching
             positions_tuple = tuple(all_positions.items())
-            eligible_tuple = tuple(eligible_positions.items())
+            eligible_tuple = tuple(scanner_eligible.items())
             
             market_data = get_market_data(positions_tuple)
             options_data = get_options_data(eligible_tuple)
@@ -476,7 +477,7 @@ with tab1:
             if st.checkbox("Show Debug Info", value=False):
                 st.write(f"Market data available for: {list(market_data.keys())}")
                 st.write(f"Options data available for: {list(options_data.keys())}")
-                st.write(f"Eligible positions: {list(eligible_positions.keys())}")
+                st.write(f"Scanner eligible positions: {list(scanner_eligible.keys())}")
                 st.write(f"Total opportunities found before filters: {len(opportunities)}")
             
             # Apply filters
