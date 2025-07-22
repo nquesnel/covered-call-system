@@ -23,6 +23,7 @@ except ImportError:
     from core.growth_analyzer import GrowthAnalyzer
 from core.options_scanner import OptionsScanner
 from core.whale_tracker import WhaleTracker
+from core.whale_tracker_enhanced import EnhancedWhaleTracker
 try:
     from core.whale_flow_tracker import WhaleFlowTracker
 except Exception as e:
@@ -72,6 +73,7 @@ if 'position_manager' not in st.session_state:
     st.session_state.trade_tracker = TradeTracker()
     st.session_state.growth_analyzer = GrowthAnalyzer()
     st.session_state.whale_tracker = WhaleTracker()
+enhanced_whale_tracker = EnhancedWhaleTracker()
     st.session_state.whale_flow_tracker = WhaleFlowTracker() if WhaleFlowTracker else None
     st.session_state.risk_manager = RiskManager()
     st.session_state.data_fetcher = DataFetcher()
@@ -1015,6 +1017,9 @@ with tab4:
         # Process flows through whale tracker to add analysis
         whale_flows = whale_tracker.detect_institutional_flows(raw_flows)
         
+        # Enhance with advanced analysis
+        enhanced_flows = enhanced_whale_tracker.rank_whale_flows(whale_flows)
+        
         if whale_flows and whale_flow_tracker:
             # Log all flows to history
             for flow in whale_flows:
@@ -1034,36 +1039,83 @@ with tab4:
             with col4:
                 st.metric("Total Premium", f"${summary['total_premium']:,.0f}")
             
-            # Flow cards
-            st.subheader("Notable Flows")
+            # Flow cards with enhanced analysis
+            st.subheader("🎯 Top Whale Flows - Ranked by Conviction")
             
-            for idx, flow in enumerate(whale_flows[:10]):  # Show top 10
+            # Filter toggle
+            show_only_high = st.checkbox("Show only HIGH+ conviction flows", value=True)
+            
+            # Display enhanced flows
+            flows_to_show = enhanced_flows
+            if show_only_high:
+                flows_to_show = [f for f in enhanced_flows if f['whale_analysis']['whale_score'] >= 75]
+            
+            if not flows_to_show:
+                st.info("No high conviction flows detected. Showing all flows...")
+                flows_to_show = enhanced_flows
+            
+            for idx, flow in enumerate(flows_to_show[:10]):  # Show top 10
                 with st.container():
                     col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
                     
                     with col1:
+                        # Enhanced display with whale score
+                        analysis = flow['whale_analysis']
+                        score = analysis['whale_score']
+                        
+                        # Score-based emoji
+                        if score >= 85:
+                            score_emoji = "🌟"  # Perfect setup
+                        elif score >= 75:
+                            score_emoji = "🎯"  # High conviction
+                        elif score >= 65:
+                            score_emoji = "💡"  # Interesting
+                        else:
+                            score_emoji = "👀"  # Watch
+                        
                         sentiment_emoji = "🟢" if "BULL" in flow['sentiment'] else "🔴"
-                        st.markdown(f"### {sentiment_emoji} {flow['symbol']} - {flow['flow_type']}")
-                        st.write(f"**{flow['option_type'].upper()}** ${flow['strike']} exp {flow['expiration']}")
-                        st.write(f"Premium Volume: ${flow['total_premium']:,}")
+                        st.markdown(f"### {score_emoji} {flow['symbol']} - Whale Score: {score}")
+                        st.write(f"{sentiment_emoji} **{flow['option_type'].upper()}** ${flow['strike']} exp {flow['expiration']}")
+                        st.write(f"💰 Premium: ${flow['total_premium']:,} | Type: {flow['flow_type']}")
+                        
+                        # Show pattern matches
+                        if analysis['pattern_matches']:
+                            patterns_str = ' | '.join(analysis['pattern_matches'])
+                            st.success(f"🎯 Patterns: {patterns_str}")
                     
                     with col2:
-                        st.metric("Unusual Factor", f"{flow['unusual_factor']:.0f}x")
-                        st.write(f"Contracts: {flow['contracts']:,}")
+                        # Conviction and metrics
+                        conviction = analysis['conviction_level']
+                        if conviction == 'EXTREME':
+                            conv_color = "🔴"
+                        elif conviction == 'HIGH':
+                            conv_color = "🟠"
+                        elif conviction == 'MODERATE':
+                            conv_color = "🟡"
+                        else:
+                            conv_color = "⚪"
                         
-                        # Show implied move
-                        implied_move = flow.get('implied_move_pct', 0)
-                        if implied_move != 0:
-                            move_color = "🟢" if abs(implied_move) < 10 else "🟡" if abs(implied_move) < 20 else "🔴"
-                            st.write(f"{move_color} **Implied Move:** {implied_move:+.1f}%")
+                        st.metric("Conviction", f"{conv_color} {conviction}")
+                        st.metric("Vol/OI Ratio", f"{flow['volume'] / max(flow.get('open_interest', 1), 1):.1f}x")
+                        st.metric("Action", analysis['recommended_action'])
                     
                     with col3:
-                        confidence_color = "🟢" if flow['smart_money_confidence'] > 80 else "🟡"
-                        st.metric("Confidence", f"{confidence_color} {flow['smart_money_confidence']}")
-                        st.write(f"Risk: {flow['risk_level']}")
+                        # Risk and timing
+                        st.metric("Inst. Probability", f"{analysis['institutional_probability']:.0f}%")
+                        st.metric("Risk/Reward", analysis['risk_reward_rating'])
+                        st.metric("Days to Exp", flow['days_to_exp'])
                     
                     with col4:
-                        if flow['follow_trade']:
+                        # Enhanced follow recommendation
+                        analysis = flow['whale_analysis']
+                        
+                        # Key insights
+                        st.markdown("**💡 Key Insights:**")
+                        for insight in analysis['key_insights'][:2]:  # Show top 2 insights
+                            st.caption(insight)
+                        
+                        # Follow recommendation
+                        if flow['follow_trade'] and analysis['whale_score'] >= 65:
                             ft = flow['follow_trade']
                             st.success("✅ Follow Opportunity")
                             st.write(ft['recommendation'])
@@ -1084,7 +1136,70 @@ with tab4:
                     
                     st.divider()
             
-            # Educational section
+            # Enhanced educational section with research findings
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                with st.expander("🌟 Proven Winning Patterns", expanded=False):
+                    st.markdown("""
+                    ### Based on Unusual Whales Research
+                    
+                    **🔥 The Perfect Storm Setup:**
+                    - Volume > 2x Open Interest
+                    - Premium > $500,000
+                    - Sweep orders on ASK side
+                    - Multiple strikes being hit
+                    - Score: 85+ required
+                    
+                    **📈 Pre-Breakout Pattern:**
+                    - 10-20% OTM calls
+                    - 20-40 days to expiration
+                    - Near technical resistance
+                    - Accumulation over days
+                    
+                    **🎯 Earnings Runner:**
+                    - 10-21 days before earnings
+                    - 5-15% OTM strikes
+                    - Premium > $100K
+                    - Multiple expiration dates
+                    
+                    **🏆 Real Winners (2024):**
+                    - OPEN: $84K → $1.3M (1,500%)
+                    - TSLA: $210C → 451% gain
+                    - BSX: $67.5C → 227% gain
+                    """)
+            
+            with col2:
+                with st.expander("🛡️ Risk Management Rules", expanded=False):
+                    st.markdown("""
+                    ### Professional Risk Management
+                    
+                    **Position Sizing:**
+                    - EXTREME conviction: 3% of portfolio
+                    - HIGH conviction: 2% of portfolio
+                    - MODERATE: 1% of portfolio
+                    - Never exceed these limits!
+                    
+                    **Entry Rules:**
+                    - Only follow scores 65+
+                    - Check liquidity (spread < 10%)
+                    - Avoid < 7 DTE trades
+                    - Skip pre-earnings unless confident
+                    
+                    **Exit Strategy:**
+                    - 25% at 100% gain
+                    - 50% at 200% gain
+                    - Let 25% run for home run
+                    - Mental stop at -50%
+                    
+                    **Red Flags to Avoid:**
+                    - Wide bid-ask spreads
+                    - Low open interest < 1000
+                    - Against strong trend
+                    - Emotional market periods
+                    """)
+            
+            # Success stories in expandable section
             with st.expander("📚 Learn from Success Stories"):
                 success_stories = whale_tracker.get_success_stories()
                 for story in success_stories:
