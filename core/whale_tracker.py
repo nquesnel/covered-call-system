@@ -84,6 +84,9 @@ class WhaleTracker:
                 whale_flow['follow_trade'] = follow_trade
                 whale_flow['retail_accessible'] = follow_trade is not None
                 
+                # Calculate implied move
+                whale_flow['implied_move_pct'] = self._calculate_implied_move(whale_flow)
+                
                 whale_flows.append(whale_flow)
         
         # Sort by total premium (largest flows first)
@@ -357,3 +360,21 @@ class WhaleTracker:
             'top_symbols': [{'symbol': s[0], 'premium': s[1]} for s in top_symbols],
             'highest_confidence': max(flows, key=lambda x: x['smart_money_confidence']) if flows else None
         }
+    
+    def _calculate_implied_move(self, flow: Dict) -> float:
+        """Calculate the implied move percentage needed for profit"""
+        current_price = flow.get('underlying_price', 0)
+        strike = flow.get('strike', 0)
+        
+        if current_price <= 0:
+            return 0
+        
+        # Calculate percentage move needed
+        if flow['option_type'] == 'call':
+            # For calls: (Strike - Current) / Current
+            implied_move = ((strike - current_price) / current_price) * 100
+        else:  # puts
+            # For puts: (Current - Strike) / Current
+            implied_move = ((current_price - strike) / current_price) * 100
+        
+        return round(implied_move, 1)

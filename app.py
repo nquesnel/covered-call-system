@@ -900,6 +900,12 @@ with tab4:
                     with col2:
                         st.metric("Unusual Factor", f"{flow['unusual_factor']:.0f}x")
                         st.write(f"Contracts: {flow['contracts']:,}")
+                        
+                        # Show implied move
+                        implied_move = flow.get('implied_move_pct', 0)
+                        if implied_move != 0:
+                            move_color = "🟢" if abs(implied_move) < 10 else "🟡" if abs(implied_move) < 20 else "🔴"
+                            st.write(f"{move_color} **Implied Move:** {implied_move:+.1f}%")
                     
                     with col3:
                         confidence_color = "🟢" if flow['smart_money_confidence'] > 80 else "🟡"
@@ -941,6 +947,116 @@ with tab4:
                     st.divider()
         else:
             st.info("No significant whale flows detected today. Check back later.")
+        
+        # Whale Flow Glossary
+        with st.expander("🐋 Understanding Whale Flows - Glossary"):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                ### Flow Types
+                
+                **🔄 Sweep**
+                - Aggressive order that "sweeps" multiple exchanges
+                - Buyer/seller willing to pay any price to fill immediately
+                - Shows urgency and strong conviction
+                - Most bullish/bearish signal
+                
+                **📦 Block**
+                - Large single order negotiated off-exchange
+                - Usually institutional positioning
+                - Less urgent than sweeps
+                - Often hedging or portfolio adjustments
+                
+                **🔀 Split**
+                - Large order broken into smaller pieces
+                - Trying to hide size or get better fills
+                - Can indicate accumulation/distribution
+                
+                **🚨 Unusual**
+                - Any flow significantly above normal volume
+                - Not necessarily sweep or block
+                - Worth monitoring for potential moves
+                """)
+            
+            with col2:
+                st.markdown("""
+                ### Key Metrics
+                
+                **📊 Unusual Factor (e.g., 81x)**
+                - How many times above average volume
+                - 10x+ = Notable, 50x+ = Very unusual
+                - 100x+ = Extremely rare, high conviction
+                
+                **💰 Premium Volume**
+                - Total dollar amount spent on options
+                - $1M+ = Significant institutional flow
+                - $5M+ = Major positioning
+                
+                **📈 Implied Move %**
+                - How much the stock needs to move for profit
+                - Calculated: (Strike - Current Price) / Current Price
+                - Shows expected volatility
+                
+                **🎯 Days to Expiration (DTE)**
+                - Time until option expires
+                - <7 DTE = Very short-term bet (earnings/news)
+                - 30-45 DTE = Standard positioning
+                - >90 DTE = Long-term conviction
+                """)
+            
+            with col3:
+                st.markdown("""
+                ### Reading the Flows
+                
+                **Example: SPY 662C sweep**
+                - Current SPY: $628
+                - Strike: $662
+                - **Implied move: +5.4%** in 2 weeks
+                - Very aggressive bullish bet
+                
+                **🟢 Bullish Signals:**
+                - Call sweeps above current price
+                - Put sells below current price
+                - Increasing call/put ratio
+                
+                **🔴 Bearish Signals:**
+                - Put sweeps below current price
+                - Call sells above current price
+                - Increasing put/call ratio
+                
+                **⚠️ Risk Levels:**
+                - LOW: Hedging flows, far OTM
+                - MODERATE: Directional bets, reasonable size
+                - HIGH: Aggressive near-term bets
+                - EXTREME: Massive size, short DTE
+                """)
+            
+            st.divider()
+            
+            st.markdown("""
+            ### 🎯 How to Use Whale Flows
+            
+            **When to FOLLOW a whale flow:**
+            - Sweep orders with high unusual factor (50x+)
+            - Multiple flows in same direction
+            - Flows align with technical levels
+            - Reasonable implied moves (<10%)
+            - 30+ DTE for time to work
+            
+            **When to AVOID:**
+            - Flows before earnings (could be hedges)
+            - Extremely far OTM strikes (lottery tickets)
+            - Very short DTE (<7 days)
+            - Against strong trend
+            - When you don't understand the setup
+            
+            **Risk Management:**
+            - Never risk more than 1-2% per whale follow
+            - Use smaller size than the whale (1-10 contracts)
+            - Set stop loss at 50% of premium paid
+            - Take profits at 50-100% gains
+            """)
     
     with flow_tab2:
         if whale_flow_tracker:
