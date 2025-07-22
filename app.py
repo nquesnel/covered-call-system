@@ -698,23 +698,29 @@ with tab2:
         
         df = pd.DataFrame(position_data)
         
-        # Style the dataframe
-        def highlight_scores(val):
-            if isinstance(val, (int, float)):
-                if val > 75:
-                    return 'background-color: #ff6b6b; color: white'
-                elif val > 50:
-                    return 'background-color: #ffd93d'
-                else:
-                    return 'background-color: #95e1d3'
-            return ''
-        
-        styled_df = df.style.applymap(
-            highlight_scores, 
-            subset=['Growth Score']
-        )
-        
-        st.dataframe(styled_df, use_container_width=True)
+        if not df.empty and 'Growth Score' in df.columns:
+            # Style the dataframe
+            def highlight_scores(val):
+                if isinstance(val, (int, float)):
+                    if val > 75:
+                        return 'background-color: #ff6b6b; color: white'
+                    elif val > 50:
+                        return 'background-color: #ffd93d'
+                    else:
+                        return 'background-color: #95e1d3'
+                return ''
+            
+            styled_df = df.style.applymap(
+                highlight_scores, 
+                subset=['Growth Score']
+            )
+            
+            st.dataframe(styled_df, use_container_width=True)
+        elif not df.empty:
+            # Display without styling if Growth Score column is missing
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("No position data available. Add positions to see portfolio analysis.")
         
         # Position management
         with st.expander("🔧 Manage Positions"):
@@ -726,8 +732,12 @@ with tab2:
                 display_name = f"{symbol} ({account})"
                 edit_options[display_name] = key
             
-            selected_edit_display = st.selectbox("Select position to edit:", list(edit_options.keys()))
-            edit_position_key = edit_options[selected_edit_display] if selected_edit_display else None
+            if edit_options:
+                selected_edit_display = st.selectbox("Select position to edit:", list(edit_options.keys()))
+                edit_position_key = edit_options[selected_edit_display] if selected_edit_display else None
+            else:
+                st.info("No positions available to edit.")
+                edit_position_key = None
             
             if edit_position_key:
                 pos = all_positions[edit_position_key]
