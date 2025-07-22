@@ -16,7 +16,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Import core modules
 from core.position_manager import PositionManager
 from core.trade_tracker import TradeTracker
-from core.growth_analyzer import GrowthAnalyzer
+try:
+    from core.growth_analyzer_enhanced import GrowthAnalyzerEnhanced as GrowthAnalyzer
+except ImportError:
+    from core.growth_analyzer import GrowthAnalyzer
 from core.options_scanner import OptionsScanner
 from core.whale_tracker import WhaleTracker
 from core.risk_manager import RiskManager
