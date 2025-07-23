@@ -710,7 +710,7 @@ with tab1:
                         if already_decided and already_decided['decision'] == 'TAKE':
                             st.success("✅ TAKEN")
                         else:
-                            if st.button("✅ TAKE", key=f"take_{idx}_{opp['symbol']}_{opp['strike']}"):
+                            if st.button("✅ TAKE", key=f"take_{i}_{opp['symbol']}_{opp['strike']}"):
                                 # Log the decision immediately
                                 decision_id = st.session_state.decision_tracker.log_opportunity(
                                     opp, 'TAKE', ''
@@ -732,7 +732,7 @@ with tab1:
                         if already_decided and already_decided['decision'] == 'PASS':
                             st.info("❌ PASSED")
                         else:
-                            if st.button("❌ PASS", key=f"pass_{idx}_{opp['symbol']}_{opp['strike']}"):
+                            if st.button("❌ PASS", key=f"pass_{i}_{opp['symbol']}_{opp['strike']}" ):
                                 # Log the decision immediately
                                 decision_id = st.session_state.decision_tracker.log_opportunity(
                                     opp, 'PASS', ''
