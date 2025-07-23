@@ -74,7 +74,11 @@ if 'position_manager' not in st.session_state:
     st.session_state.growth_analyzer = GrowthAnalyzer()
     st.session_state.whale_tracker = WhaleTracker()
     st.session_state.enhanced_whale_tracker = EnhancedWhaleTracker()
-    st.session_state.whale_flow_tracker = WhaleFlowTracker() if WhaleFlowTracker else None
+    try:
+        st.session_state.whale_flow_tracker = WhaleFlowTracker()
+    except Exception as e:
+        print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
+        st.session_state.whale_flow_tracker = None
     st.session_state.risk_manager = RiskManager()
     st.session_state.data_fetcher = DataFetcher()
 
@@ -1023,8 +1027,12 @@ with tab4:
         
         if whale_flows and whale_flow_tracker:
             # Log all flows to history
-            for flow in whale_flows:
-                whale_flow_tracker.log_flow(flow)
+            try:
+                for flow in whale_flows:
+                    whale_flow_tracker.log_flow(flow)
+            except Exception as e:
+                print(f"Warning: Could not log whale flows: {e}")
+                # Continue without logging
         
         if whale_flows:
             # Summary metrics

@@ -117,6 +117,8 @@ class WhaleFlowTracker:
             print(f"Error connecting to database: {e}")
             return -1
         
+        try:
+        
         # Check if this exact flow already exists (avoid duplicates)
         try:
             cursor.execute('''
@@ -194,11 +196,17 @@ class WhaleFlowTracker:
                 flow.get('underlying_price', 0)
             ))
         
-        flow_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return flow_id
+            flow_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return flow_id
+        except Exception as e:
+            print(f"Error in log_flow: {e}")
+            try:
+                conn.close()
+            except:
+                pass
+            return -1
     
     def record_follow(self, flow_id: int, contracts: int, cost: float) -> bool:
         """Record that we followed a whale flow"""
