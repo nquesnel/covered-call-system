@@ -25,7 +25,17 @@ from core.options_scanner import OptionsScanner
 from core.whale_tracker import WhaleTracker
 from core.whale_tracker_enhanced import EnhancedWhaleTracker
 try:
+    # Try to import database version, fall back to simple version
+try:
     from core.whale_flow_tracker import WhaleFlowTracker
+except:
+    WhaleFlowTracker = None
+    
+try:
+    from core.whale_flow_tracker_simple import SimpleWhaleFlowTracker
+except Exception as e:
+    print(f"Error importing SimpleWhaleFlowTracker: {e}")
+    SimpleWhaleFlowTracker = None
 except Exception as e:
     print(f"Warning: Could not import WhaleFlowTracker: {e}")
     WhaleFlowTracker = None
@@ -74,10 +84,31 @@ if 'position_manager' not in st.session_state:
     st.session_state.growth_analyzer = GrowthAnalyzer()
     st.session_state.whale_tracker = WhaleTracker()
     st.session_state.enhanced_whale_tracker = EnhancedWhaleTracker()
-    try:
-        st.session_state.whale_flow_tracker = WhaleFlowTracker()
-    except Exception as e:
-        print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
+    # Try database version first, fall back to simple version
+    if WhaleFlowTracker:
+        try:
+            st.session_state.whale_flow_tracker = WhaleFlowTracker()
+        except Exception as e:
+            print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
+            # Try simple version
+            if SimpleWhaleFlowTracker:
+                try:
+                    st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
+                    print("Using SimpleWhaleFlowTracker (in-memory only)")
+                except Exception as e2:
+                    print(f"Error with SimpleWhaleFlowTracker: {e2}")
+                    st.session_state.whale_flow_tracker = None
+            else:
+                st.session_state.whale_flow_tracker = None
+    elif SimpleWhaleFlowTracker:
+        # Only simple version available
+        try:
+            st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
+            print("Using SimpleWhaleFlowTracker (in-memory only)")
+        except Exception as e:
+            print(f"Error with SimpleWhaleFlowTracker: {e}")
+            st.session_state.whale_flow_tracker = None
+    else:
         st.session_state.whale_flow_tracker = None
     st.session_state.risk_manager = RiskManager()
     st.session_state.data_fetcher = DataFetcher()
