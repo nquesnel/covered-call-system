@@ -191,17 +191,21 @@ class PositionManager:
         total_cost = 0
         positions_value = {}
         
-        for symbol, pos in self.positions.items():
+        for position_key, pos in self.positions.items():
+            # Extract symbol from position key (SYMBOL_ACCOUNT format)
+            symbol = pos.get('symbol', position_key.split('_')[0])
+            
             cost = pos['shares'] * pos['cost_basis']
             total_cost += cost
             
-            if symbol in current_prices:
+            if symbol in current_prices and current_prices[symbol] > 0:
                 value = pos['shares'] * current_prices[symbol]
                 total_value += value
                 gain_loss = value - cost
                 gain_loss_pct = (gain_loss / cost) * 100 if cost > 0 else 0
                 
-                positions_value[symbol] = {
+                positions_value[position_key] = {
+                    'symbol': symbol,
                     'shares': pos['shares'],
                     'cost_basis': pos['cost_basis'],
                     'current_price': current_prices[symbol],

@@ -557,10 +557,20 @@ with tab1:
                         # Show earnings date if available
                         if opp['symbol'] in market_data and 'next_earnings_date' in market_data[opp['symbol']]:
                             earnings_date = market_data[opp['symbol']]['next_earnings_date']
-                            if opp.get('earnings_before_exp'):
-                                st.write(f"⚠️ **Earnings**: {earnings_date} (BEFORE exp)")
-                            else:
-                                st.write(f"✅ **Earnings**: {earnings_date} (after exp)")
+                            try:
+                                earnings_dt = datetime.strptime(earnings_date, '%Y-%m-%d')
+                                exp_dt = datetime.strptime(opp['expiration'], '%Y-%m-%d')
+                                today = datetime.now()
+                                
+                                if earnings_dt < today:
+                                    st.write(f"✅ **Earnings**: {earnings_date} (already passed)")
+                                elif earnings_dt < exp_dt:
+                                    days_until = (earnings_dt - today).days
+                                    st.write(f"⚠️ **Earnings**: {earnings_date} (in {days_until} days - BEFORE exp)")
+                                else:
+                                    st.write(f"✅ **Earnings**: {earnings_date} (after exp)")
+                            except:
+                                st.write(f"**Earnings**: {earnings_date}")
                     
                     with col2:
                         yield_color = "🟢" if opp['monthly_yield'] > 3 else "🟡"
@@ -727,9 +737,19 @@ with tab2:
         market_data = get_market_data(positions_tuple)
         
         # Calculate portfolio value
-        portfolio_value = pos_manager.calculate_total_value(
-            {s: d.get('price', 0) for s, d in market_data.items()}
-        )
+        # Extract prices from market data
+        current_prices = {}
+        for symbol, data in market_data.items():
+            if data and 'price' in data:
+                current_prices[symbol] = data['price']
+        
+        # Debug: show what data we have
+        if st.checkbox("Show portfolio debug info", value=False):
+            st.write("Market data symbols:", list(market_data.keys()))
+            st.write("Current prices:", current_prices)
+            st.write("Position keys:", list(all_positions.keys()))
+        
+        portfolio_value = pos_manager.calculate_total_value(current_prices)
         
         # Portfolio summary metrics
         col1, col2, col3, col4 = st.columns(4)

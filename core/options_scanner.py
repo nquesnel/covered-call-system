@@ -331,13 +331,19 @@ class OptionsScanner:
     
     def _check_earnings_risk(self, symbol: str, expiration: str, 
                            market_data: Dict) -> bool:
-        """Check if earnings occur before expiration"""
+        """Check if earnings occur BETWEEN today and expiration"""
         if 'next_earnings_date' in market_data:
-            earnings_date = datetime.strptime(
-                market_data['next_earnings_date'], '%Y-%m-%d'
-            )
-            exp_date = datetime.strptime(expiration, '%Y-%m-%d')
-            return earnings_date < exp_date
+            try:
+                earnings_date = datetime.strptime(
+                    market_data['next_earnings_date'], '%Y-%m-%d'
+                )
+                exp_date = datetime.strptime(expiration, '%Y-%m-%d')
+                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                
+                # Earnings are a risk only if they occur AFTER today AND BEFORE expiration
+                return today < earnings_date < exp_date
+            except:
+                return False
         return False
     
     def filter_by_criteria(self, opportunities: List[Dict], 
