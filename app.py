@@ -1358,22 +1358,79 @@ with tab4:
             recent_flows = whale_flow_tracker.get_recent_flows(30)
             
             if recent_flows:
-                # Convert to DataFrame for display
+                # Convert to DataFrame for display  
                 df_data = []
-                for flow in recent_flows[:50]:  # Show last 50
+                for i, flow in enumerate(recent_flows[:50]):  # Show last 50
                     df_data.append({
+                        'ID': flow['id'],
                         'Date': flow['timestamp'][:10],
                         'Symbol': flow['symbol'],
                         'Type': flow['flow_type'],
                         'Strike': f"${flow['strike']:.2f}",
                         'Premium': f"${flow['total_premium']:,.0f}",
-                        'Followed': '✅' if flow['followed'] else '',
+                        'Score': flow.get('whale_score', '-'),
+                        'Followed': '✅' if flow['followed'] else '❌',
                         'Outcome': flow.get('outcome', '-'),
                         'P&L': f"${flow.get('result_pnl', 0):,.0f}" if flow.get('result_pnl') else '-'
                     })
                 
                 df = pd.DataFrame(df_data)
-                st.dataframe(df, use_container_width=True)
+                
+                # Style the dataframe
+                def style_score(val):
+                    if val == '-' or pd.isna(val):
+                        return ''
+                    score = int(val) if not pd.isna(val) else 0
+                    if score >= 85:
+                        return 'background-color: #4CAF50; color: white'
+                    elif score >= 75:
+                        return 'background-color: #8BC34A'
+                    elif score >= 65:
+                        return 'background-color: #FFC107'
+                    else:
+                        return ''
+                
+                # Apply styling
+                styled_df = df.style.applymap(style_score, subset=['Score'])
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                
+                # Manual follow tracking section
+                st.divider()
+                st.subheader("🔄 Update Follow Status")
+                st.write("Mark flows you followed manually (outside the app)")
+                
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    # Get list of recent flows for selection
+                    flow_options = {}
+                    for flow in recent_flows[:20]:  # Last 20 flows
+                        key = f"{flow['symbol']} ${flow['strike']} {flow['option_type']} - {flow['timestamp'][:10]}"
+                        flow_options[key] = flow['id']
+                    
+                    selected_flow = st.selectbox(
+                        "Select flow to update:",
+                        options=list(flow_options.keys()),
+                        key="manual_follow_select"
+                    )
+                
+                with col2:
+                    contracts = st.number_input(
+                        "Contracts:",
+                        min_value=1,
+                        value=1,
+                        key="manual_follow_contracts"
+                    )
+                
+                with col3:
+                    if st.button("🔄 Toggle Follow Status", type="secondary"):
+                        if selected_flow and whale_flow_tracker:
+                            flow_id = flow_options[selected_flow]
+                            success = whale_flow_tracker.toggle_followed(flow_id, contracts)
+                            if success:
+                                st.success("Updated follow status!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to update status")
                 
                 # Followed flows management
                 followed_flows = whale_flow_tracker.get_followed_flows()

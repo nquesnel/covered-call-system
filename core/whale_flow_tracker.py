@@ -48,6 +48,7 @@ class WhaleFlowTracker:
                 unusual_factor REAL,
                 sentiment TEXT,
                 confidence INTEGER,
+                whale_score INTEGER DEFAULT 0,
                 underlying_price REAL,
                 followed BOOLEAN DEFAULT 0,
                 followed_contracts INTEGER DEFAULT 0,
@@ -103,8 +104,8 @@ class WhaleFlowTracker:
             INSERT INTO whale_flows (
                 timestamp, symbol, flow_type, option_type, strike, expiration,
                 days_to_exp, contracts, premium, total_premium, unusual_factor,
-                sentiment, confidence, underlying_price
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sentiment, confidence, whale_score, underlying_price
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             flow.get('timestamp', datetime.now().isoformat()),
             flow['symbol'],
@@ -119,6 +120,7 @@ class WhaleFlowTracker:
             flow.get('unusual_factor', 0),
             flow.get('sentiment', ''),
             flow.get('smart_money_confidence', 0),
+            flow.get('whale_analysis', {}).get('whale_score', 0) if 'whale_analysis' in flow else 0,
             flow.get('underlying_price', 0)
         ))
         
@@ -144,6 +146,44 @@ class WhaleFlowTracker:
         conn.close()
         
         return success
+    
+    def toggle_followed(self, flow_id: int, contracts: int = 1, cost: float = None) -> bool:
+        """Toggle followed status for a flow (for manual tracking)"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        # Get current status
+        cursor.execute('SELECT followed, premium FROM whale_flows WHERE id = ?', (flow_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return False
+        
+        current_followed, premium = result
+        new_followed = 0 if current_followed else 1
+        
+        # If marking as followed and no cost provided, estimate it
+        if new_followed and cost is None:
+            cost = contracts * premium * 100
+        
+        if new_followed:
+            cursor.execute('''
+                UPDATE whale_flows 
+                SET followed = 1, followed_contracts = ?, followed_cost = ?
+                WHERE id = ?
+            ''', (contracts, cost, flow_id))
+        else:
+            cursor.execute('''
+                UPDATE whale_flows 
+                SET followed = 0, followed_contracts = 0, followed_cost = 0
+                WHERE id = ?
+            ''', (flow_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return True
     
     def update_outcome(self, flow_id: int, result_price: float, 
                       outcome: str, notes: str = "") -> Tuple[bool, Dict]:
@@ -231,10 +271,22 @@ class WhaleFlowTracker:
         
         return flows
     
+    def get_all_flows_count(self) -> int:
+        """Get total count of all flows in database"""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM whale_flows')
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+    
     def get_performance_stats(self) -> Dict:
         """Get performance statistics for followed flows"""
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
+        
+        # Get total flows count
+        total_flows_count = self.get_all_flows_count()
         
         # Overall stats
         cursor.execute('''
@@ -277,9 +329,9 @@ class WhaleFlowTracker:
         completed = wins + losses
         
         return {
-            'total_flows_seen': stats[0] or 0,
+            'total_flows_seen': total_flows_count,
             'flows_followed': flows_followed,
-            'follow_rate': flows_followed / max(stats[0], 1) if stats[0] else 0,
+            'follow_rate': flows_followed / max(total_flows_count, 1) if total_flows_count else 0,
             'wins': wins,
             'losses': losses,
             'win_rate': wins / max(completed, 1) if completed else 0,
