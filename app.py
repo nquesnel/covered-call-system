@@ -24,11 +24,12 @@ except ImportError:
 from core.options_scanner import OptionsScanner
 from core.whale_tracker import WhaleTracker
 from core.whale_tracker_enhanced import EnhancedWhaleTracker
-try:
-    # Try to import database version, fall back to simple version
+
+# Try to import database version, fall back to simple version
 try:
     from core.whale_flow_tracker import WhaleFlowTracker
-except:
+except Exception as e:
+    print(f"Warning: Could not import WhaleFlowTracker: {e}")
     WhaleFlowTracker = None
     
 try:
@@ -36,9 +37,6 @@ try:
 except Exception as e:
     print(f"Error importing SimpleWhaleFlowTracker: {e}")
     SimpleWhaleFlowTracker = None
-except Exception as e:
-    print(f"Warning: Could not import WhaleFlowTracker: {e}")
-    WhaleFlowTracker = None
 from core.risk_manager import RiskManager
 try:
     from utils.data_fetcher_real import RealDataFetcher as DataFetcher
@@ -91,12 +89,16 @@ if 'position_manager' not in st.session_state:
                         os.environ.get('STREAMLIT_RUNTIME_ENV') == 'cloud' or \
                         '/mount/src/' in os.getcwd()
     
+    print(f"DEBUG: is_streamlit_cloud = {is_streamlit_cloud}")
+    print(f"DEBUG: WhaleFlowTracker available = {WhaleFlowTracker is not None}")
+    print(f"DEBUG: SimpleWhaleFlowTracker available = {SimpleWhaleFlowTracker is not None}")
+    
     # Force simple tracker on Streamlit Cloud
     if is_streamlit_cloud:
         if SimpleWhaleFlowTracker:
             try:
                 st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
-                print("Using SimpleWhaleFlowTracker on Streamlit Cloud")
+                print("SUCCESS: Using SimpleWhaleFlowTracker on Streamlit Cloud")
             except Exception as e:
                 print(f"Error with SimpleWhaleFlowTracker: {e}")
                 st.session_state.whale_flow_tracker = None
@@ -107,6 +109,7 @@ if 'position_manager' not in st.session_state:
         if WhaleFlowTracker:
             try:
                 st.session_state.whale_flow_tracker = WhaleFlowTracker()
+                print("Using database WhaleFlowTracker")
             except Exception as e:
                 print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
                 # Try simple version
