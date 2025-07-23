@@ -286,6 +286,50 @@ with st.sidebar:
             else:
                 st.error("Please fill all required fields")
     
+    # Manual covered call entry
+    with st.expander("📝 Record Covered Call", expanded=False):
+        st.write("Manually record an existing covered call position")
+        
+        # Get list of symbols from positions
+        position_symbols = [pos.get('symbol', k.split('_')[0]) for k, pos in all_positions.items()]
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            cc_symbol = st.selectbox("Symbol", position_symbols, key="cc_symbol")
+            cc_strike = st.number_input("Strike Price", min_value=0.01, step=1.0, key="cc_strike")
+            cc_contracts = st.number_input("Contracts", min_value=1, value=1, step=1, key="cc_contracts")
+        with col2:
+            cc_expiration = st.date_input("Expiration", key="cc_expiration")
+            cc_premium = st.number_input("Premium Collected (per share)", min_value=0.01, step=0.01, key="cc_premium")
+            cc_fill_price = st.number_input("Actual Fill Price", min_value=0.01, step=0.01, value=cc_premium, key="cc_fill")
+        
+        cc_notes = st.text_area("Notes (optional)", key="cc_notes")
+        
+        if st.button("Record Covered Call", type="primary", key="record_cc"):
+            if cc_symbol and cc_strike and cc_premium and cc_expiration:
+                # Get current stock price
+                try:
+                    stock_data = data_fetcher.get_stock_data(cc_symbol)
+                    current_price = stock_data.get('price', cc_strike)
+                except:
+                    current_price = cc_strike
+                
+                # Record the trade
+                trade_id = trade_tracker.record_trade(
+                    symbol=cc_symbol,
+                    trade_type='covered_call',
+                    strike=cc_strike,
+                    expiration=cc_expiration.strftime('%Y-%m-%d'),
+                    contracts=cc_contracts,
+                    premium=cc_fill_price,  # Use actual fill price
+                    underlying_price=current_price,
+                    notes=cc_notes
+                )
+                st.success(f"✅ Recorded {cc_contracts} {cc_symbol} ${cc_strike} covered call(s)")
+                st.rerun()
+            else:
+                st.error("Please fill all required fields")
+    
     # Current positions summary
     st.subheader("Current Positions")
     all_positions = pos_manager.get_all_positions()
@@ -711,22 +755,52 @@ with tab1:
                             st.success("✅ TAKEN")
                         else:
                             if st.button("✅ TAKE", key=f"take_{i}_{opp['symbol']}_{opp['strike']}"):
-                                # Log the decision immediately
-                                decision_id = st.session_state.decision_tracker.log_opportunity(
-                                    opp, 'TAKE', ''
-                                )
-                                # Also record in trade tracker
-                                trade_id = st.session_state.trade_tracker.record_trade(
-                                    symbol=opp['symbol'],
-                                    trade_type='covered_call',
-                                    strike=opp['strike'], 
-                                    expiration=opp['expiration'],
-                                    contracts=opp.get('max_contracts', 1),
-                                    premium=opp['premium'],
-                                    underlying_price=opp['current_price']
-                                )
-                                st.success(f"✅ Recorded TAKE decision for {opp['symbol']} ${opp['strike']}")
+                                # Store opportunity in session state for fill price dialog
+                                st.session_state[f"pending_take_{i}"] = opp
                                 st.rerun()
+                            
+                            # Show fill price dialog if pending
+                            if f"pending_take_{i}" in st.session_state:
+                                with st.container():
+                                    st.write("💵 **Enter Fill Details**")
+                                    fill_col1, fill_col2, fill_col3 = st.columns([1, 1, 1])
+                                    with fill_col1:
+                                        actual_premium = st.number_input(
+                                            "Fill Price", 
+                                            value=opp['premium'],
+                                            min_value=0.01,
+                                            step=0.01,
+                                            key=f"fill_{i}"
+                                        )
+                                    with fill_col2:
+                                        contracts = st.number_input(
+                                            "Contracts",
+                                            value=opp.get('max_contracts', 1),
+                                            min_value=1,
+                                            key=f"contracts_{i}"
+                                        )
+                                    with fill_col3:
+                                        if st.button("✅ Confirm", key=f"confirm_{i}"):
+                                            # Log the decision
+                                            decision_id = st.session_state.decision_tracker.log_opportunity(
+                                                opp, 'TAKE', f'Filled at ${actual_premium}'
+                                            )
+                                            # Record in trade tracker with actual fill price
+                                            trade_id = st.session_state.trade_tracker.record_trade(
+                                                symbol=opp['symbol'],
+                                                trade_type='covered_call',
+                                                strike=opp['strike'], 
+                                                expiration=opp['expiration'],
+                                                contracts=contracts,
+                                                premium=actual_premium,
+                                                underlying_price=opp['current_price']
+                                            )
+                                            st.success(f"✅ Recorded {contracts} {opp['symbol']} ${opp['strike']} CC at ${actual_premium}")
+                                            del st.session_state[f"pending_take_{i}"]
+                                            st.rerun()
+                                        if st.button("❌ Cancel", key=f"cancel_{i}"):
+                                            del st.session_state[f"pending_take_{i}"]
+                                            st.rerun()
                     
                     with decision_col2:
                         if already_decided and already_decided['decision'] == 'PASS':
