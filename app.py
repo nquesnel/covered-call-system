@@ -298,17 +298,17 @@ with st.sidebar:
         
         col1, col2 = st.columns(2)
         with col1:
-            cc_symbol = st.selectbox("Symbol", position_symbols, key="cc_symbol")
-            cc_strike = st.number_input("Strike Price", min_value=0.01, step=1.0, key="cc_strike")
-            cc_contracts = st.number_input("Contracts", min_value=1, value=1, step=1, key="cc_contracts")
+            cc_symbol = st.selectbox("Symbol", position_symbols, key="manual_cc_symbol")
+            cc_strike = st.number_input("Strike Price", min_value=0.01, step=1.0, key="manual_cc_strike")
+            cc_contracts = st.number_input("Contracts", min_value=1, value=1, step=1, key="manual_cc_contracts")
         with col2:
-            cc_expiration = st.date_input("Expiration", key="cc_expiration")
-            cc_premium = st.number_input("Premium Collected (per share)", min_value=0.01, step=0.01, key="cc_premium")
-            cc_fill_price = st.number_input("Actual Fill Price", min_value=0.01, step=0.01, value=cc_premium, key="cc_fill")
+            cc_expiration = st.date_input("Expiration", key="manual_cc_expiration")
+            cc_premium = st.number_input("Premium Collected (per share)", min_value=0.01, step=0.01, key="manual_cc_premium")
+            cc_fill_price = st.number_input("Actual Fill Price", min_value=0.01, step=0.01, key="manual_cc_fill")
         
-        cc_notes = st.text_area("Notes (optional)", key="cc_notes")
+        cc_notes = st.text_area("Notes (optional)", key="manual_cc_notes")
         
-        if st.button("Record Covered Call", type="primary", key="record_cc"):
+        if st.button("Record Covered Call", type="primary", key="record_manual_cc"):
             if cc_symbol and cc_strike and cc_premium and cc_expiration:
                 # Get current stock price
                 try:
