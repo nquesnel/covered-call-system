@@ -696,46 +696,61 @@ with tab1:
                     # Decision tracking buttons
                     decision_col1, decision_col2, decision_col3 = st.columns([1, 1, 3])
                     
+                    # Check if this opportunity has been decided on
+                    recent_decisions = st.session_state.decision_tracker.get_recent_decisions(7)
+                    already_decided = None
+                    for decision in recent_decisions:
+                        if (decision['symbol'] == opp['symbol'] and 
+                            decision['strike'] == opp['strike'] and
+                            decision['expiration'] == opp['expiration']):
+                            already_decided = decision
+                            break
+                    
                     with decision_col1:
-                        if st.button("✅ TAKE", key=f"take_{idx}_{opp['symbol']}_{opp['strike']}"):
-                            notes = st.text_input("Quick note (optional):", key=f"note_take_{idx}")
-                            decision_id = st.session_state.decision_tracker.log_opportunity(
-                                opp, 'TAKE', notes
-                            )
-                            # Also record in trade tracker
-                            trade_id = st.session_state.trade_tracker.record_trade(
-                                symbol=opp['symbol'],
-                                trade_type='covered_call',
-                                strike=opp['strike'], 
-                                expiration=opp['expiration'],
-                                contracts=opp.get('max_contracts', 1),
-                                premium=opp['premium'],
-                                underlying_price=opp['current_price']
-                            )
-                            st.success(f"✅ Recorded TAKE decision for {opp['symbol']} ${opp['strike']}")
-                            st.rerun()
+                        if already_decided and already_decided['decision'] == 'TAKE':
+                            st.success("✅ TAKEN")
+                        else:
+                            if st.button("✅ TAKE", key=f"take_{idx}_{opp['symbol']}_{opp['strike']}"):
+                                # Log the decision immediately
+                                decision_id = st.session_state.decision_tracker.log_opportunity(
+                                    opp, 'TAKE', ''
+                                )
+                                # Also record in trade tracker
+                                trade_id = st.session_state.trade_tracker.record_trade(
+                                    symbol=opp['symbol'],
+                                    trade_type='covered_call',
+                                    strike=opp['strike'], 
+                                    expiration=opp['expiration'],
+                                    contracts=opp.get('max_contracts', 1),
+                                    premium=opp['premium'],
+                                    underlying_price=opp['current_price']
+                                )
+                                st.success(f"✅ Recorded TAKE decision for {opp['symbol']} ${opp['strike']}")
+                                st.rerun()
                     
                     with decision_col2:
-                        if st.button("❌ PASS", key=f"pass_{idx}_{opp['symbol']}_{opp['strike']}"):
-                            notes = st.text_input("Why passing? (optional):", key=f"note_pass_{idx}")
-                            decision_id = st.session_state.decision_tracker.log_opportunity(
-                                opp, 'PASS', notes
-                            )
-                            st.info(f"❌ Recorded PASS decision for {opp['symbol']} ${opp['strike']}")
-                            st.rerun()
+                        if already_decided and already_decided['decision'] == 'PASS':
+                            st.info("❌ PASSED")
+                        else:
+                            if st.button("❌ PASS", key=f"pass_{idx}_{opp['symbol']}_{opp['strike']}"):
+                                # Log the decision immediately
+                                decision_id = st.session_state.decision_tracker.log_opportunity(
+                                    opp, 'PASS', ''
+                                )
+                                st.info(f"❌ Recorded PASS decision for {opp['symbol']} ${opp['strike']}")
+                                st.rerun()
                     
                     with decision_col3:
-                        # Show if already decided
-                        recent_decisions = st.session_state.decision_tracker.get_recent_decisions(7)
-                        for decision in recent_decisions:
-                            if (decision['symbol'] == opp['symbol'] and 
-                                decision['strike'] == opp['strike'] and
-                                decision['expiration'] == opp['expiration']):
-                                if decision['decision'] == 'TAKE':
-                                    st.success(f"Previously: TAKEN on {decision['timestamp'][:10]}")
-                                elif decision['decision'] == 'PASS':
-                                    st.info(f"Previously: PASSED on {decision['timestamp'][:10]}")
-                                break
+                        # Show decision details if already decided
+                        if already_decided:
+                            if already_decided['decision'] == 'TAKE':
+                                st.write(f"📅 Taken on {already_decided['timestamp'][:10]}")
+                            elif already_decided['decision'] == 'PASS':
+                                st.write(f"📅 Passed on {already_decided['timestamp'][:10]}")
+                            if already_decided.get('notes'):
+                                st.caption(f"Note: {already_decided['notes']}")
+                        else:
+                            st.write("🆕 New opportunity")
                     
                     # Expandable details
                     with st.expander("View Full Analysis"):
