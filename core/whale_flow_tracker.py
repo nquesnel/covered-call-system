@@ -30,37 +30,57 @@ class WhaleFlowTracker:
     def init_database(self):
         """Create tables for whale flow tracking"""
         conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
         
-        # Whale flows table
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS whale_flows (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                symbol TEXT NOT NULL,
-                flow_type TEXT NOT NULL,
-                option_type TEXT NOT NULL,
-                strike REAL NOT NULL,
-                expiration TEXT NOT NULL,
-                days_to_exp INTEGER,
-                contracts INTEGER NOT NULL,
-                premium REAL NOT NULL,
-                total_premium REAL NOT NULL,
-                unusual_factor REAL,
-                sentiment TEXT,
-                confidence INTEGER,
-                whale_score INTEGER DEFAULT 0,
-                underlying_price REAL,
-                followed BOOLEAN DEFAULT 0,
-                followed_contracts INTEGER DEFAULT 0,
-                followed_cost REAL DEFAULT 0,
-                result_price REAL,
-                result_date TEXT,
-                result_pnl REAL,
-                result_return_pct REAL,
-                outcome TEXT,
-                notes TEXT
-            )
-        ''')
+        # Check if table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='whale_flows'")
+        table_exists = cursor.fetchone() is not None
+        
+        if not table_exists:
+            # Create new table with all columns
+            conn.execute('''
+                CREATE TABLE whale_flows (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    symbol TEXT NOT NULL,
+                    flow_type TEXT NOT NULL,
+                    option_type TEXT NOT NULL,
+                    strike REAL NOT NULL,
+                    expiration TEXT NOT NULL,
+                    days_to_exp INTEGER,
+                    contracts INTEGER NOT NULL,
+                    premium REAL NOT NULL,
+                    total_premium REAL NOT NULL,
+                    unusual_factor REAL,
+                    sentiment TEXT,
+                    confidence INTEGER,
+                    whale_score INTEGER DEFAULT 0,
+                    underlying_price REAL,
+                    followed BOOLEAN DEFAULT 0,
+                    followed_contracts INTEGER DEFAULT 0,
+                    followed_cost REAL DEFAULT 0,
+                    result_price REAL,
+                    result_date TEXT,
+                    result_pnl REAL,
+                    result_return_pct REAL,
+                    outcome TEXT,
+                    notes TEXT
+                )
+            ''')
+        else:
+            # Table exists, check if whale_score column exists
+            cursor.execute("PRAGMA table_info(whale_flows)")
+            columns = cursor.fetchall()
+            column_names = [col[1] for col in columns]
+            
+            if 'whale_score' not in column_names:
+                # Add whale_score column to existing table
+                try:
+                    conn.execute('ALTER TABLE whale_flows ADD COLUMN whale_score INTEGER DEFAULT 0')
+                    print("Added whale_score column to existing whale_flows table")
+                except sqlite3.OperationalError:
+                    # Column might already exist
+                    pass
         
         # Create indexes for faster queries
         conn.execute('''
@@ -100,29 +120,55 @@ class WhaleFlowTracker:
             return existing[0]
         
         # Insert new flow
-        cursor.execute('''
-            INSERT INTO whale_flows (
-                timestamp, symbol, flow_type, option_type, strike, expiration,
-                days_to_exp, contracts, premium, total_premium, unusual_factor,
-                sentiment, confidence, whale_score, underlying_price
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            flow.get('timestamp', datetime.now().isoformat()),
-            flow['symbol'],
-            flow['flow_type'],
-            flow['option_type'],
-            flow['strike'],
-            flow['expiration'],
-            flow.get('days_to_exp'),
-            flow.get('contracts', 0),
-            flow.get('premium_per_contract', 0),
-            flow['total_premium'],
-            flow.get('unusual_factor', 0),
-            flow.get('sentiment', ''),
-            flow.get('smart_money_confidence', 0),
-            flow.get('whale_analysis', {}).get('whale_score', 0) if 'whale_analysis' in flow else 0,
-            flow.get('underlying_price', 0)
-        ))
+        try:
+            # Try with whale_score column
+            cursor.execute('''
+                INSERT INTO whale_flows (
+                    timestamp, symbol, flow_type, option_type, strike, expiration,
+                    days_to_exp, contracts, premium, total_premium, unusual_factor,
+                    sentiment, confidence, whale_score, underlying_price
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                flow.get('timestamp', datetime.now().isoformat()),
+                flow['symbol'],
+                flow['flow_type'],
+                flow['option_type'],
+                flow['strike'],
+                flow['expiration'],
+                flow.get('days_to_exp'),
+                flow.get('contracts', 0),
+                flow.get('premium_per_contract', 0),
+                flow['total_premium'],
+                flow.get('unusual_factor', 0),
+                flow.get('sentiment', ''),
+                flow.get('smart_money_confidence', 0),
+                flow.get('whale_analysis', {}).get('whale_score', 0) if 'whale_analysis' in flow else 0,
+                flow.get('underlying_price', 0)
+            ))
+        except sqlite3.OperationalError:
+            # Fallback without whale_score for old schema
+            cursor.execute('''
+                INSERT INTO whale_flows (
+                    timestamp, symbol, flow_type, option_type, strike, expiration,
+                    days_to_exp, contracts, premium, total_premium, unusual_factor,
+                    sentiment, confidence, underlying_price
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                flow.get('timestamp', datetime.now().isoformat()),
+                flow['symbol'],
+                flow['flow_type'],
+                flow['option_type'],
+                flow['strike'],
+                flow['expiration'],
+                flow.get('days_to_exp'),
+                flow.get('contracts', 0),
+                flow.get('premium_per_contract', 0),
+                flow['total_premium'],
+                flow.get('unusual_factor', 0),
+                flow.get('sentiment', ''),
+                flow.get('smart_money_confidence', 0),
+                flow.get('underlying_price', 0)
+            ))
         
         flow_id = cursor.lastrowid
         conn.commit()
