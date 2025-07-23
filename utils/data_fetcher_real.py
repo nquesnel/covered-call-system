@@ -37,8 +37,7 @@ class RealDataFetcher:
             history = ticker.history(period="3mo")
             
             if history.empty:
-                # Fall back to mock data if symbol not found
-                return self._generate_mock_stock_data(symbol)
+                raise ValueError(f"No data found for symbol {symbol}")
             
             # Current data
             current_price = history['Close'].iloc[-1]
@@ -117,8 +116,7 @@ class RealDataFetcher:
             
         except Exception as e:
             print(f"Error fetching data for {symbol}: {str(e)}")
-            # Fall back to mock data
-            return self._generate_mock_stock_data(symbol)
+            raise ValueError(f"Failed to fetch data for {symbol}: {str(e)}")
     
     def get_options_chain(self, symbol: str) -> Dict:
         """Get real options chain from Yahoo Finance"""
@@ -132,7 +130,7 @@ class RealDataFetcher:
             # Get available expiration dates
             expirations = ticker.options
             if not expirations:
-                return self._generate_mock_options_chain(symbol)
+                return {}
             
             chain = {}
             stock_data = self.get_stock_data(symbol)
@@ -182,11 +180,11 @@ class RealDataFetcher:
                 self._cache_data(cache_key, chain)
                 return chain
             else:
-                return self._generate_mock_options_chain(symbol)
+                return {}
                 
         except Exception as e:
             print(f"Error fetching options for {symbol}: {str(e)}")
-            return self._generate_mock_options_chain(symbol)
+            return {}
     
     def get_whale_flows(self, min_premium: float = 50000) -> List[Dict]:
         """
@@ -197,14 +195,68 @@ class RealDataFetcher:
         if self._is_cached("whale_flows"):
             return self.cache["whale_flows"]
         
-        # In a real implementation, this would:
-        # 1. Connect to Unusual Whales API (paid)
-        # 2. Or scrape free sources like Barchart unusual options
-        # 3. Or use TD Ameritrade API for unusual volume
+        # Try to get real unusual options data
+        flows = []
         
-        # For now, generate realistic mock flows based on market conditions
-        flows = self._generate_mock_whale_flows()
-        self._cache_data("whale_flows", flows)
+        try:
+            # Get top movers from popular stocks
+            popular_symbols = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMD', 'MSFT', 'META', 'AMZN', 'GOOGL']
+            
+            for symbol in popular_symbols:
+                try:
+                    ticker = yf.Ticker(symbol)
+                    # Get today's options with high volume
+                    expirations = ticker.options[:3]  # Next 3 expirations
+                    
+                    for exp_date in expirations:
+                        opt_chain = ticker.option_chain(exp_date)
+                        calls = opt_chain.calls
+                        
+                        # Find high volume trades
+                        high_vol = calls[calls['volume'] > calls['openInterest'] * 2]
+                        
+                        for _, row in high_vol.iterrows():
+                            premium_vol = row['volume'] * row['lastPrice'] * 100
+                            if premium_vol > min_premium:
+                                flow = {
+                                    'timestamp': datetime.now().isoformat(),
+                                    'symbol': symbol,
+                                    'underlying_price': ticker.info.get('regularMarketPrice', row['strike']),
+                                    'trade_type': 'sweep' if row['volume'] > row['openInterest'] * 3 else 'block',
+                                    'option_type': 'call',
+                                    'strike': row['strike'],
+                                    'expiration': exp_date,
+                                    'days_to_exp': (datetime.strptime(exp_date, '%Y-%m-%d') - datetime.now()).days,
+                                    'volume': row['volume'],
+                                    'contracts': row['volume'],
+                                    'premium': row['lastPrice'],
+                                    'premium_per_contract': row['lastPrice'],
+                                    'total_premium': premium_vol,
+                                    'premium_volume': premium_vol,
+                                    'avg_volume': row['openInterest'] // 20,  # Estimate
+                                    'open_interest': row['openInterest'],
+                                    'bid': row['bid'],
+                                    'ask': row['ask'],
+                                    'implied_volatility': row.get('impliedVolatility', 0.5),
+                                    'volume_oi_ratio': row['volume'] / max(row['openInterest'], 1),
+                                    'execution_side': 'ask' if row['lastPrice'] >= row['ask'] else 'bid',
+                                    'bid_ask_spread': row['ask'] - row['bid']
+                                }
+                                flows.append(flow)
+                except:
+                    continue
+            
+            # Sort by premium volume
+            flows.sort(key=lambda x: x['premium_volume'], reverse=True)
+            flows = flows[:20]  # Top 20 flows
+            
+        except Exception as e:
+            print(f"Error fetching whale flows: {e}")
+            # Return empty list instead of mock data
+            flows = []
+        
+        if flows:
+            self._cache_data("whale_flows", flows)
         
         return flows
     

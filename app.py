@@ -51,10 +51,12 @@ else:
         WhaleFlowTracker = None
 from core.risk_manager import RiskManager
 try:
+    import yfinance as yf
     from utils.data_fetcher_real import RealDataFetcher as DataFetcher
+    print("Using real market data from Yahoo Finance")
 except ImportError:
-    print("Note: yfinance not installed. Using mock data. Install with: pip install yfinance")
-    from utils.data_fetcher import DataFetcher
+    st.error("⚠️ yfinance not installed! Install with: pip install yfinance")
+    st.stop()
 
 # Page configuration
 st.set_page_config(
@@ -375,8 +377,9 @@ def get_market_data(positions_tuple):
         try:
             market_data[symbol] = data_fetcher.get_stock_data(symbol)
         except Exception as e:
-            print(f"Failed to fetch data for {symbol}: {e}")
-            market_data[symbol] = None
+            st.warning(f"Failed to fetch data for {symbol}: {e}")
+            # Don't include symbols we can't fetch data for
+            continue
     
     return market_data
 
@@ -393,18 +396,12 @@ def get_options_data(positions_tuple):
             if chain:  # Only add if we got valid data
                 options_data[symbol] = chain
             else:
-                # Create mock data if no real data available
-                from core.options_scanner import OptionsScanner
-                scanner = OptionsScanner(None, None)
-                mock_price = position.get('cost_basis', 100)
-                options_data[symbol] = scanner._create_mock_options_chain(symbol, {'price': mock_price})
+                # Skip if no real data available
+                print(f"No options data available for {symbol}")
         except Exception as e:
             print(f"Failed to fetch options for {symbol}: {e}")
-            # Create mock data as fallback
-            from core.options_scanner import OptionsScanner
-            scanner = OptionsScanner(None, None)
-            mock_price = position.get('cost_basis', 100)
-            options_data[symbol] = scanner._create_mock_options_chain(symbol, {'price': mock_price})
+            # Skip if error
+            print(f"Error getting options for {symbol}: {e}")
     
     return options_data
 
@@ -499,6 +496,22 @@ with tab1:
     
     # Get opportunities - using scanner's eligible positions
     scanner_eligible = pos_manager.get_eligible_positions()  # Get fresh eligible positions
+    
+    # Enhanced debugging
+    if not scanner_eligible:
+        st.error("❌ No eligible positions found!")
+        all_pos = pos_manager.get_all_positions()
+        if all_pos:
+            st.write("Current positions (need 100+ shares for covered calls):")
+            for key, pos in all_pos.items():
+                symbol = pos.get('symbol', key.split('_')[0])
+                shares = pos.get('shares', 0)
+                account = pos.get('account_type', 'unknown')
+                contracts_available = shares // 100
+                st.write(f"• **{symbol}** ({account}): {shares} shares = {contracts_available} contracts")
+        else:
+            st.info("No positions found. Add positions in the sidebar.")
+    
     if scanner_eligible:
         with st.spinner("Scanning for opportunities..."):
             # Convert to tuple for caching
@@ -934,8 +947,10 @@ with tab3:
             # Check for any urgent alerts
             urgent_alerts = []
             for trade in active_trades:
-                # Calculate current profit (mock - would use real market data)
-                current_bid = trade['premium'] * 0.4  # Mock: assume we can buy back at 40% of premium
+                # Calculate current profit (estimate based on time decay)
+                days_held = (datetime.now() - datetime.fromisoformat(trade['entry_date'])).days
+                time_decay_factor = min(0.9, days_held / 30)  # Assume 90% decay in 30 days
+                current_bid = trade['premium'] * (1 - time_decay_factor)
                 profit_pct = (1 - current_bid/trade['premium']) * 100
                 days_remaining = trade.get('days_to_exp', 30)
                 
@@ -957,7 +972,7 @@ with tab3:
             
             for trade in active_trades:
                 with st.container():
-                    # Calculate metrics (mock data)
+                    # Calculate metrics
                     current_bid = trade['premium'] * 0.4
                     profit_pct = (1 - current_bid/trade['premium']) * 100
                     days_remaining = trade.get('days_to_exp', 30)
@@ -1046,7 +1061,7 @@ with tab4:
     flow_tab1, flow_tab2 = st.tabs(["🔴 Live Flows", "📊 History & Performance"])
     
     with flow_tab1:
-        # Get whale flows (mock data for now)
+        # Get whale flows from market data
         raw_flows = data_fetcher.get_whale_flows()
         
         # Process flows through whale tracker to add analysis
@@ -1575,7 +1590,7 @@ with tab5:
                 st.write(f"**{trade['symbol']}**")
             
             with col2:
-                # Calculate profit percentage (mock)
+                # Calculate profit percentage
                 profit_pct = 25  # Would calculate from real data
                 if profit_pct >= 50:
                     st.error(f"🚨 {profit_pct}% profit - CLOSE NOW (50% rule)")

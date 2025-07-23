@@ -5,6 +5,10 @@ Implements proven patterns for finding massive winning trades
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import statistics
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.data_validator import DataValidator
 
 
 class EnhancedWhaleTracker:
@@ -96,13 +100,16 @@ class EnhancedWhaleTracker:
         }
         
         try:
-            # Calculate base metrics
-            metrics = self._calculate_flow_metrics(flow_data)
+            # Validate and normalize flow data first
+            validated_flow = DataValidator.validate_whale_flow(flow_data)
+            
+            # Calculate base metrics with validated data
+            metrics = self._calculate_flow_metrics(validated_flow)
         except Exception as e:
-            print(f"Error calculating metrics for flow: {e}")
+            print(f"Error analyzing whale flow: {e}")
             print(f"Flow data keys: {list(flow_data.keys())}")
-            # Return basic analysis on error
-            return analysis
+            # Return error analysis
+            return DataValidator.create_error_response(str(e), 'whale_flow')
         
         # Score based on multiple factors
         score_components = {
@@ -127,8 +134,8 @@ class EnhancedWhaleTracker:
         whale_score = sum(score_components[k] * weights[k] for k in weights)
         analysis['whale_score'] = round(whale_score)
         
-        # Check for winning patterns
-        pattern_matches = self._check_winning_patterns(flow_data, metrics)
+        # Check for winning patterns with validated flow
+        pattern_matches = self._check_winning_patterns(validated_flow, metrics)
         analysis['pattern_matches'] = pattern_matches
         
         # Determine conviction level
@@ -159,10 +166,10 @@ class EnhancedWhaleTracker:
         analysis['institutional_probability'] = (inst_indicators / 4) * 100
         
         # Generate key insights
-        analysis['key_insights'] = self._generate_insights(flow_data, metrics, pattern_matches)
+        analysis['key_insights'] = self._generate_insights(validated_flow, metrics, pattern_matches)
         
         # Risk/Reward assessment
-        analysis['risk_reward_rating'] = self._assess_risk_reward(flow_data, metrics)
+        analysis['risk_reward_rating'] = self._assess_risk_reward(validated_flow, metrics)
         
         return analysis
     

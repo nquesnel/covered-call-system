@@ -273,14 +273,20 @@ class DataFetcher:
                 'expiration': exp_date.strftime('%Y-%m-%d'),
                 'days_to_exp': days_out,
                 'volume': contracts,
+                'contracts': contracts,  # Add both field names
                 'premium': premium,
+                'premium_per_contract': premium,  # Add both field names
+                'total_premium': premium_volume,  # Add explicit field
                 'premium_volume': premium_volume,
                 'avg_volume': avg_volume,
                 'open_interest': random.randint(1000, 50000),
                 'bid': premium - 0.05,
                 'ask': premium + 0.05,
                 'implied_volatility': random.uniform(0.3, 1.5),
-                'unusual_factor': unusual_factor
+                'unusual_factor': unusual_factor,
+                'volume_oi_ratio': contracts / random.randint(1000, 50000),  # Add explicit ratio
+                'execution_side': random.choice(['bid', 'ask', 'mid']),  # Add execution side
+                'bid_ask_spread': 0.10  # Add spread
             }
             
             # Add to flows

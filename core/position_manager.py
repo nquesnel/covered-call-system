@@ -162,29 +162,18 @@ class PositionManager:
         return self.positions.copy()
     
     def get_eligible_positions(self, min_shares: int = 100) -> Dict:
-        """Return positions with enough shares for covered calls - grouped by symbol"""
+        """Return positions with enough shares for covered calls"""
         eligible = {}
-        # Group by symbol and combine shares across accounts
-        symbol_positions = {}
         
+        # Return individual positions that meet minimum share requirement
         for key, pos in self.positions.items():
-            symbol = pos.get('symbol', key.split('_')[0])
-            if symbol not in symbol_positions:
-                # Use the first position's data as base
-                symbol_positions[symbol] = pos.copy()
-                symbol_positions[symbol]['position_keys'] = [key]
-            else:
-                # Combine shares from multiple accounts
-                symbol_positions[symbol]['shares'] += pos['shares']
-                symbol_positions[symbol]['position_keys'].append(key)
-                # Mark as multi-account
-                if pos['account_type'] != symbol_positions[symbol]['account_type']:
-                    symbol_positions[symbol]['account_type'] = 'multiple'
-        
-        # Filter for eligible positions
-        for symbol, combined_pos in symbol_positions.items():
-            if combined_pos['shares'] >= min_shares:
-                eligible[symbol] = combined_pos
+            if pos.get('shares', 0) >= min_shares:
+                # Extract symbol from position or key
+                symbol = pos.get('symbol', key.split('_')[0])
+                # Add position with symbol as key for compatibility
+                eligible[symbol] = pos.copy()
+                eligible[symbol]['position_key'] = key
+                eligible[symbol]['symbol'] = symbol
                 
         return eligible
     
