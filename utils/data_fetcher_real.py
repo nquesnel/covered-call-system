@@ -217,6 +217,12 @@ class RealDataFetcher:
                         
                         for _, row in high_vol.iterrows():
                             premium_vol = row['volume'] * row['lastPrice'] * 100
+                            days_to_exp = (datetime.strptime(exp_date, '%Y-%m-%d') - datetime.now()).days
+                            
+                            # Skip expired options
+                            if days_to_exp < 0:
+                                continue
+                                
                             if premium_vol > min_premium:
                                 flow = {
                                     'timestamp': datetime.now().isoformat(),
@@ -226,7 +232,7 @@ class RealDataFetcher:
                                     'option_type': 'call',
                                     'strike': row['strike'],
                                     'expiration': exp_date,
-                                    'days_to_exp': (datetime.strptime(exp_date, '%Y-%m-%d') - datetime.now()).days,
+                                    'days_to_exp': days_to_exp,
                                     'volume': row['volume'],
                                     'contracts': row['volume'],
                                     'premium': row['lastPrice'],

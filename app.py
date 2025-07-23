@@ -318,16 +318,19 @@ with st.sidebar:
                     current_price = cc_strike
                 
                 # Record the trade
-                trade_id = trade_tracker.record_trade(
-                    symbol=cc_symbol,
-                    trade_type='covered_call',
-                    strike=cc_strike,
-                    expiration=cc_expiration.strftime('%Y-%m-%d'),
-                    contracts=cc_contracts,
-                    premium=cc_fill_price,  # Use actual fill price
-                    underlying_price=current_price,
-                    notes=cc_notes
-                )
+                trade_data = {
+                    'symbol': cc_symbol,
+                    'strike': cc_strike,
+                    'expiration': cc_expiration.strftime('%Y-%m-%d'),
+                    'contracts': cc_contracts,
+                    'premium': cc_fill_price,  # Use actual fill price
+                    'underlying_price': current_price,
+                    'decision': 'TAKEN',
+                    'notes': cc_notes
+                }
+                trade_id = trade_tracker.log_opportunity(trade_data)
+                # Update decision to TAKEN
+                trade_tracker.update_decision(trade_id, 'TAKEN', cc_notes)
                 st.success(f"✅ Recorded {cc_contracts} {cc_symbol} ${cc_strike} covered call(s)")
                 st.rerun()
             else:
@@ -789,15 +792,18 @@ with tab1:
                                                 opp, 'TAKE', f'Filled at ${actual_premium}'
                                             )
                                             # Record in trade tracker with actual fill price
-                                            trade_id = st.session_state.trade_tracker.record_trade(
-                                                symbol=opp['symbol'],
-                                                trade_type='covered_call',
-                                                strike=opp['strike'], 
-                                                expiration=opp['expiration'],
-                                                contracts=contracts,
-                                                premium=actual_premium,
-                                                underlying_price=opp['current_price']
-                                            )
+                                            trade_data = {
+                                                'symbol': opp['symbol'],
+                                                'strike': opp['strike'],
+                                                'expiration': opp['expiration'],
+                                                'contracts': contracts,
+                                                'premium': actual_premium,
+                                                'underlying_price': opp['current_price'],
+                                                'decision': 'TAKEN',
+                                                'notes': f'Filled at ${actual_premium}'
+                                            }
+                                            trade_id = st.session_state.trade_tracker.log_opportunity(trade_data)
+                                            st.session_state.trade_tracker.update_decision(trade_id, 'TAKEN', '')
                                             st.success(f"✅ Recorded {contracts} {opp['symbol']} ${opp['strike']} CC at ${actual_premium}")
                                             del st.session_state[f"pending_take_{i}"]
                                             st.rerun()
