@@ -95,8 +95,14 @@ class EnhancedWhaleTracker:
             'key_insights': []
         }
         
-        # Calculate base metrics
-        metrics = self._calculate_flow_metrics(flow_data)
+        try:
+            # Calculate base metrics
+            metrics = self._calculate_flow_metrics(flow_data)
+        except Exception as e:
+            print(f"Error calculating metrics for flow: {e}")
+            print(f"Flow data keys: {list(flow_data.keys())}")
+            # Return basic analysis on error
+            return analysis
         
         # Score based on multiple factors
         score_components = {
@@ -165,24 +171,40 @@ class EnhancedWhaleTracker:
         current_price = flow.get('underlying_price', 0)
         strike = flow.get('strike', 0)
         
-        # OTM percentage calculation
-        if flow.get('option_type') == 'call':
-            otm_pct = ((strike - current_price) / current_price) * 100
-        else:  # put
-            otm_pct = ((current_price - strike) / current_price) * 100
+        # OTM percentage calculation with safety checks
+        if current_price > 0:
+            if flow.get('option_type') == 'call':
+                otm_pct = ((strike - current_price) / current_price) * 100
+            else:  # put
+                otm_pct = ((current_price - strike) / current_price) * 100
+        else:
+            otm_pct = 0
         
         # Handle both 'volume' and 'contracts' field names
         volume = flow.get('contracts', flow.get('volume', 0))
+        
+        # Calculate volume/OI ratio safely
+        if 'volume_oi_ratio' in flow:
+            vol_oi_ratio = flow['volume_oi_ratio']
+        else:
+            open_interest = flow.get('open_interest', 1)
+            vol_oi_ratio = volume / max(open_interest, 1) if open_interest > 0 else 0
+        
+        # Calculate spread percentage safely
+        ask = flow.get('ask', 0)
+        bid = flow.get('bid', 0)
+        spread = ask - bid
+        spread_pct = (spread / ask * 100) if ask > 0 else 0
         
         return {
             'contracts': volume,
             'total_premium': flow.get('total_premium', flow.get('premium_volume', 0)),
             'premium_per_contract': flow.get('premium_per_contract', flow.get('premium', 0)),
-            'volume_oi_ratio': flow.get('volume_oi_ratio', volume / max(flow.get('open_interest', 1), 1)),
+            'volume_oi_ratio': vol_oi_ratio,
             'days_to_exp': flow.get('days_to_exp', 0),
             'otm_percentage': max(0, otm_pct),
-            'bid_ask_spread': flow.get('bid_ask_spread', flow.get('ask', 0) - flow.get('bid', 0)),
-            'spread_percentage': ((flow.get('ask', 0) - flow.get('bid', 0)) / max(flow.get('ask', 1), 1)) * 100
+            'bid_ask_spread': flow.get('bid_ask_spread', spread),
+            'spread_percentage': spread_pct
         }
     
     def _score_premium(self, premium: float) -> float:
@@ -388,9 +410,23 @@ class EnhancedWhaleTracker:
         analyzed_flows = []
         
         for flow in flows:
-            analysis = self.analyze_whale_flow(flow)
-            flow['whale_analysis'] = analysis
-            analyzed_flows.append(flow)
+            try:
+                analysis = self.analyze_whale_flow(flow)
+                flow['whale_analysis'] = analysis
+                analyzed_flows.append(flow)
+            except Exception as e:
+                print(f"Error analyzing flow {flow.get('symbol', 'Unknown')}: {e}")
+                # Add basic analysis on error
+                flow['whale_analysis'] = {
+                    'whale_score': 0,
+                    'pattern_matches': [],
+                    'conviction_level': 'ERROR',
+                    'risk_reward_rating': 'UNKNOWN',
+                    'institutional_probability': 0,
+                    'recommended_action': 'SKIP',
+                    'key_insights': ['Error analyzing flow']
+                }
+                analyzed_flows.append(flow)
         
         # Sort by whale score descending
         analyzed_flows.sort(key=lambda x: x['whale_analysis']['whale_score'], reverse=True)
