@@ -25,18 +25,30 @@ from core.options_scanner import OptionsScanner
 from core.whale_tracker import WhaleTracker
 from core.whale_tracker_enhanced import EnhancedWhaleTracker
 
-# Try to import database version, fall back to simple version
-try:
-    from core.whale_flow_tracker import WhaleFlowTracker
-except Exception as e:
-    print(f"Warning: Could not import WhaleFlowTracker: {e}")
-    WhaleFlowTracker = None
-    
+# Import simple version first (always works)
 try:
     from core.whale_flow_tracker_simple import SimpleWhaleFlowTracker
 except Exception as e:
     print(f"Error importing SimpleWhaleFlowTracker: {e}")
     SimpleWhaleFlowTracker = None
+
+# Check if we're on Streamlit Cloud BEFORE importing database version
+import os
+is_cloud = ('/mount/src/' in os.getcwd() or 
+           os.environ.get('STREAMLIT_SHARING_MODE') is not None or 
+           os.environ.get('STREAMLIT_RUNTIME_ENV') is not None)
+
+if is_cloud:
+    # Don't even try to import database version on cloud
+    WhaleFlowTracker = None
+    print("Detected Streamlit Cloud - skipping database tracker")
+else:
+    # Only import database version on local
+    try:
+        from core.whale_flow_tracker import WhaleFlowTracker
+    except Exception as e:
+        print(f"Warning: Could not import WhaleFlowTracker: {e}")
+        WhaleFlowTracker = None
 from core.risk_manager import RiskManager
 try:
     from utils.data_fetcher_real import RealDataFetcher as DataFetcher
@@ -83,55 +95,19 @@ if 'position_manager' not in st.session_state:
     st.session_state.whale_tracker = WhaleTracker()
     st.session_state.enhanced_whale_tracker = EnhancedWhaleTracker()
     
-    # Detect if we're on Streamlit Cloud
-    import os
-    is_streamlit_cloud = os.environ.get('STREAMLIT_SHARING_MODE') == 'private' or \
-                        os.environ.get('STREAMLIT_RUNTIME_ENV') == 'cloud' or \
-                        '/mount/src/' in os.getcwd()
+    # We already detected cloud environment during imports
     
-    print(f"DEBUG: is_streamlit_cloud = {is_streamlit_cloud}")
-    print(f"DEBUG: WhaleFlowTracker available = {WhaleFlowTracker is not None}")
-    print(f"DEBUG: SimpleWhaleFlowTracker available = {SimpleWhaleFlowTracker is not None}")
-    
-    # Force simple tracker on Streamlit Cloud
-    if is_streamlit_cloud:
-        if SimpleWhaleFlowTracker:
-            try:
-                st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
-                print("SUCCESS: Using SimpleWhaleFlowTracker on Streamlit Cloud")
-            except Exception as e:
-                print(f"Error with SimpleWhaleFlowTracker: {e}")
-                st.session_state.whale_flow_tracker = None
-        else:
+    # Always use SimpleWhaleFlowTracker if available
+    if SimpleWhaleFlowTracker:
+        try:
+            st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
+            print("SUCCESS: Using SimpleWhaleFlowTracker (in-memory)")
+        except Exception as e:
+            print(f"Error initializing SimpleWhaleFlowTracker: {e}")
             st.session_state.whale_flow_tracker = None
     else:
-        # Try database version first on local
-        if WhaleFlowTracker:
-            try:
-                st.session_state.whale_flow_tracker = WhaleFlowTracker()
-                print("Using database WhaleFlowTracker")
-            except Exception as e:
-                print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
-                # Try simple version
-                if SimpleWhaleFlowTracker:
-                    try:
-                        st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
-                        print("Using SimpleWhaleFlowTracker (in-memory only)")
-                    except Exception as e2:
-                        print(f"Error with SimpleWhaleFlowTracker: {e2}")
-                        st.session_state.whale_flow_tracker = None
-                else:
-                    st.session_state.whale_flow_tracker = None
-        elif SimpleWhaleFlowTracker:
-            # Only simple version available
-            try:
-                st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
-                print("Using SimpleWhaleFlowTracker (in-memory only)")
-            except Exception as e:
-                print(f"Error with SimpleWhaleFlowTracker: {e}")
-                st.session_state.whale_flow_tracker = None
-        else:
-            st.session_state.whale_flow_tracker = None
+        print("ERROR: SimpleWhaleFlowTracker not available")
+        st.session_state.whale_flow_tracker = None
             
     st.session_state.risk_manager = RiskManager()
     st.session_state.data_fetcher = DataFetcher()
