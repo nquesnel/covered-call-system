@@ -329,8 +329,8 @@ with st.sidebar:
                     'notes': cc_notes
                 }
                 trade_id = trade_tracker.log_opportunity(trade_data)
-                # Update decision to TAKEN
-                trade_tracker.update_decision(trade_id, 'TAKEN', cc_notes)
+                # Update decision to TAKEN with contracts
+                trade_tracker.update_decision(trade_id, 'TAKEN', cc_contracts, cc_notes)
                 st.success(f"✅ Recorded {cc_contracts} {cc_symbol} ${cc_strike} covered call(s)")
                 st.rerun()
             else:
@@ -803,7 +803,7 @@ with tab1:
                                                 'notes': f'Filled at ${actual_premium}'
                                             }
                                             trade_id = st.session_state.trade_tracker.log_opportunity(trade_data)
-                                            st.session_state.trade_tracker.update_decision(trade_id, 'TAKEN', '')
+                                            st.session_state.trade_tracker.update_decision(trade_id, 'TAKEN', contracts, f'Filled at ${actual_premium}')
                                             st.success(f"✅ Recorded {contracts} {opp['symbol']} ${opp['strike']} CC at ${actual_premium}")
                                             del st.session_state[f"pending_take_{i}"]
                                             st.rerun()
