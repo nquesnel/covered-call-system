@@ -84,32 +84,52 @@ if 'position_manager' not in st.session_state:
     st.session_state.growth_analyzer = GrowthAnalyzer()
     st.session_state.whale_tracker = WhaleTracker()
     st.session_state.enhanced_whale_tracker = EnhancedWhaleTracker()
-    # Try database version first, fall back to simple version
-    if WhaleFlowTracker:
-        try:
-            st.session_state.whale_flow_tracker = WhaleFlowTracker()
-        except Exception as e:
-            print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
-            # Try simple version
-            if SimpleWhaleFlowTracker:
-                try:
-                    st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
-                    print("Using SimpleWhaleFlowTracker (in-memory only)")
-                except Exception as e2:
-                    print(f"Error with SimpleWhaleFlowTracker: {e2}")
-                    st.session_state.whale_flow_tracker = None
-            else:
+    
+    # Detect if we're on Streamlit Cloud
+    import os
+    is_streamlit_cloud = os.environ.get('STREAMLIT_SHARING_MODE') == 'private' or \
+                        os.environ.get('STREAMLIT_RUNTIME_ENV') == 'cloud' or \
+                        '/mount/src/' in os.getcwd()
+    
+    # Force simple tracker on Streamlit Cloud
+    if is_streamlit_cloud:
+        if SimpleWhaleFlowTracker:
+            try:
+                st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
+                print("Using SimpleWhaleFlowTracker on Streamlit Cloud")
+            except Exception as e:
+                print(f"Error with SimpleWhaleFlowTracker: {e}")
                 st.session_state.whale_flow_tracker = None
-    elif SimpleWhaleFlowTracker:
-        # Only simple version available
-        try:
-            st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
-            print("Using SimpleWhaleFlowTracker (in-memory only)")
-        except Exception as e:
-            print(f"Error with SimpleWhaleFlowTracker: {e}")
+        else:
             st.session_state.whale_flow_tracker = None
     else:
-        st.session_state.whale_flow_tracker = None
+        # Try database version first on local
+        if WhaleFlowTracker:
+            try:
+                st.session_state.whale_flow_tracker = WhaleFlowTracker()
+            except Exception as e:
+                print(f"Warning: Could not initialize WhaleFlowTracker: {e}")
+                # Try simple version
+                if SimpleWhaleFlowTracker:
+                    try:
+                        st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
+                        print("Using SimpleWhaleFlowTracker (in-memory only)")
+                    except Exception as e2:
+                        print(f"Error with SimpleWhaleFlowTracker: {e2}")
+                        st.session_state.whale_flow_tracker = None
+                else:
+                    st.session_state.whale_flow_tracker = None
+        elif SimpleWhaleFlowTracker:
+            # Only simple version available
+            try:
+                st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
+                print("Using SimpleWhaleFlowTracker (in-memory only)")
+            except Exception as e:
+                print(f"Error with SimpleWhaleFlowTracker: {e}")
+                st.session_state.whale_flow_tracker = None
+        else:
+            st.session_state.whale_flow_tracker = None
+            
     st.session_state.risk_manager = RiskManager()
     st.session_state.data_fetcher = DataFetcher()
 
@@ -1060,10 +1080,14 @@ with tab4:
             # Log all flows to history
             try:
                 for flow in whale_flows:
-                    whale_flow_tracker.log_flow(flow)
+                    try:
+                        whale_flow_tracker.log_flow(flow)
+                    except:
+                        # Silently skip individual flow errors
+                        pass
             except Exception as e:
-                print(f"Warning: Could not log whale flows: {e}")
-                # Continue without logging
+                # This should catch any remaining errors
+                pass
         
         if whale_flows:
             # Summary metrics
