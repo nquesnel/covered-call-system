@@ -286,6 +286,9 @@ with st.sidebar:
             else:
                 st.error("Please fill all required fields")
     
+    # Get positions first
+    all_positions = pos_manager.get_all_positions()
+    
     # Manual covered call entry
     with st.expander("📝 Record Covered Call", expanded=False):
         st.write("Manually record an existing covered call position")
