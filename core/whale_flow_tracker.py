@@ -12,14 +12,21 @@ class WhaleFlowTracker:
     
     def __init__(self, db_file: str = "data/whale_flows.db"):
         self.db_file = db_file
+        self._initialized = False
         try:
             self._ensure_data_dir()
             self.init_database()
+            self._initialized = True
         except Exception as e:
             print(f"Warning: Could not initialize whale flow database: {e}")
             # Use in-memory database as fallback
             self.db_file = ":memory:"
-            self.init_database()
+            try:
+                self.init_database()
+                self._initialized = True
+            except Exception as e2:
+                print(f"Error: Could not initialize in-memory database: {e2}")
+                self._initialized = False
     
     def _ensure_data_dir(self):
         """Create data directory if it doesn't exist"""
@@ -98,23 +105,40 @@ class WhaleFlowTracker:
     
     def log_flow(self, flow: Dict) -> int:
         """Log a new whale flow"""
-        conn = sqlite3.connect(self.db_file)
-        cursor = conn.cursor()
+        # Skip if database not initialized
+        if not self._initialized:
+            print("Warning: Database not initialized, skipping flow logging")
+            return -1
+        
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+        except Exception as e:
+            print(f"Error connecting to database: {e}")
+            return -1
         
         # Check if this exact flow already exists (avoid duplicates)
-        cursor.execute('''
-            SELECT id FROM whale_flows 
-            WHERE symbol = ? AND strike = ? AND expiration = ? 
-            AND ABS(total_premium - ?) < 100
-            AND datetime(timestamp) > datetime('now', '-5 minutes')
-        ''', (
-            flow['symbol'], 
-            flow['strike'], 
-            flow['expiration'],
-            flow['total_premium']
-        ))
+        try:
+            cursor.execute('''
+                SELECT id FROM whale_flows 
+                WHERE symbol = ? AND strike = ? AND expiration = ? 
+                AND ABS(total_premium - ?) < 100
+                AND datetime(timestamp) > datetime('now', '-5 minutes')
+            ''', (
+                flow['symbol'], 
+                flow['strike'], 
+                flow['expiration'],
+                flow['total_premium']
+            ))
+            existing = cursor.fetchone()
+        except sqlite3.OperationalError:
+            # Table might not exist, try to create it
+            conn.close()
+            self.init_database()
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            existing = None
         
-        existing = cursor.fetchone()
         if existing:
             conn.close()
             return existing[0]
@@ -283,9 +307,16 @@ class WhaleFlowTracker:
     
     def get_recent_flows(self, days: int = 30) -> List[Dict]:
         """Get recent whale flows"""
-        conn = sqlite3.connect(self.db_file)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        if not self._initialized:
+            return []
+        
+        try:
+            conn = sqlite3.connect(self.db_file)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        except Exception as e:
+            print(f"Error connecting to database: {e}")
+            return []
         
         cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
         
@@ -302,9 +333,16 @@ class WhaleFlowTracker:
     
     def get_followed_flows(self) -> List[Dict]:
         """Get all flows we followed"""
-        conn = sqlite3.connect(self.db_file)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        if not self._initialized:
+            return []
+        
+        try:
+            conn = sqlite3.connect(self.db_file)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        except Exception as e:
+            print(f"Error connecting to database: {e}")
+            return []
         
         cursor.execute('''
             SELECT * FROM whale_flows 
@@ -319,17 +357,53 @@ class WhaleFlowTracker:
     
     def get_all_flows_count(self) -> int:
         """Get total count of all flows in database"""
-        conn = sqlite3.connect(self.db_file)
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM whale_flows')
-        count = cursor.fetchone()[0]
-        conn.close()
-        return count
+        if not self._initialized:
+            return 0
+        
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM whale_flows')
+            count = cursor.fetchone()[0]
+            conn.close()
+            return count
+        except Exception as e:
+            print(f"Error getting flow count: {e}")
+            return 0
     
     def get_performance_stats(self) -> Dict:
         """Get performance statistics for followed flows"""
-        conn = sqlite3.connect(self.db_file)
-        cursor = conn.cursor()
+        if not self._initialized:
+            return {
+                'total_flows_seen': 0,
+                'flows_followed': 0,
+                'follow_rate': 0,
+                'wins': 0,
+                'losses': 0,
+                'win_rate': 0,
+                'total_pnl': 0,
+                'avg_return_pct': 0,
+                'best_trade': None,
+                'worst_trade': None
+            }
+        
+        try:
+            conn = sqlite3.connect(self.db_file)
+            cursor = conn.cursor()
+        except Exception as e:
+            print(f"Error connecting to database: {e}")
+            return {
+                'total_flows_seen': 0,
+                'flows_followed': 0,
+                'follow_rate': 0,
+                'wins': 0,
+                'losses': 0,
+                'win_rate': 0,
+                'total_pnl': 0,
+                'avg_return_pct': 0,
+                'best_trade': None,
+                'worst_trade': None
+            }
         
         # Get total flows count
         total_flows_count = self.get_all_flows_count()
