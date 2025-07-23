@@ -1404,14 +1404,14 @@ with tab4:
                 df_data = []
                 for i, flow in enumerate(recent_flows[:50]):  # Show last 50
                     df_data.append({
-                        'ID': flow['id'],
-                        'Date': flow['timestamp'][:10],
-                        'Symbol': flow['symbol'],
-                        'Type': flow['flow_type'],
-                        'Strike': f"${flow['strike']:.2f}",
-                        'Premium': f"${flow['total_premium']:,.0f}",
+                        'ID': flow.get('id', i),
+                        'Date': flow.get('timestamp', '')[:10] if flow.get('timestamp') else '-',
+                        'Symbol': flow.get('symbol', '-'),
+                        'Type': flow.get('flow_type', '-'),
+                        'Strike': f"${flow.get('strike', 0):.2f}",
+                        'Premium': f"${flow.get('total_premium', 0):,.0f}",
                         'Score': flow.get('whale_score', '-'),
-                        'Followed': '✅' if flow['followed'] else '❌',
+                        'Followed': '✅' if flow.get('followed', False) else '❌',
                         'Outcome': flow.get('outcome', '-'),
                         'P&L': f"${flow.get('result_pnl', 0):,.0f}" if flow.get('result_pnl') else '-'
                     })
@@ -1446,8 +1446,12 @@ with tab4:
                     # Get list of recent flows for selection
                     flow_options = {}
                     for flow in recent_flows[:20]:  # Last 20 flows
-                        key = f"{flow['symbol']} ${flow['strike']} {flow['option_type']} - {flow['timestamp'][:10]}"
-                        flow_options[key] = flow['id']
+                        symbol = flow.get('symbol', 'Unknown')
+                        strike = flow.get('strike', 0)
+                        option_type = flow.get('option_type', 'call')
+                        timestamp = flow.get('timestamp', '')[:10] if flow.get('timestamp') else '-'
+                        key = f"{symbol} ${strike} {option_type} - {timestamp}"
+                        flow_options[key] = flow.get('id', i)
                     
                     selected_flow = st.selectbox(
                         "Select flow to update:",
