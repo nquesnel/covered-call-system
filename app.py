@@ -103,10 +103,10 @@ if 'position_manager' not in st.session_state:
 
 # Initialize data fetcher
 data_fetcher = DataFetcher()
-    
-    # We already detected cloud environment during imports
-    
-    # Always use SimpleWhaleFlowTracker if available
+
+# We already detected cloud environment during imports
+# Always use SimpleWhaleFlowTracker if available
+if 'whale_flow_tracker' not in st.session_state:
     if SimpleWhaleFlowTracker:
         try:
             st.session_state.whale_flow_tracker = SimpleWhaleFlowTracker()
