@@ -17,6 +17,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Import core modules
 from core.position_manager import PositionManager
 from core.trade_tracker import TradeTracker
+from core.trade_decision_tracker import TradeDecisionTracker
+from core.position_monitor import PositionMonitor
 try:
     from core.growth_analyzer_enhanced import GrowthAnalyzerEnhanced as GrowthAnalyzer
 except ImportError:
@@ -96,6 +98,11 @@ if 'position_manager' not in st.session_state:
     st.session_state.growth_analyzer = GrowthAnalyzer()
     st.session_state.whale_tracker = WhaleTracker()
     st.session_state.enhanced_whale_tracker = EnhancedWhaleTracker()
+    st.session_state.decision_tracker = TradeDecisionTracker()
+    st.session_state.position_monitor = PositionMonitor(st.session_state.trade_tracker)
+
+# Initialize data fetcher
+data_fetcher = DataFetcher()
     
     # We already detected cloud environment during imports
     
@@ -130,6 +137,57 @@ scanner = OptionsScanner(pos_manager, growth_analyzer)
 # Title and goal reminder
 st.title("📈 Covered Call Income System")
 st.markdown("**Mission**: Generate $2-5K monthly income to eliminate $60K margin debt")
+
+# 21-50-7 Rule Alerts (show before everything else)
+if st.session_state.trade_tracker.get_active_trades():
+    with st.container():
+        # Get current market prices for monitoring
+        active_symbols = list(set(t['symbol'] for t in st.session_state.trade_tracker.get_active_trades()))
+        current_prices = {}
+        for symbol in active_symbols:
+            try:
+                data = data_fetcher.get_stock_data(symbol)
+                if data and 'price' in data:
+                    current_prices[symbol] = data['price']
+            except:
+                pass
+        
+        # Check positions against 21-50-7 rules
+        alerts = st.session_state.position_monitor.check_positions(current_prices)
+        
+        # Show critical alerts
+        if alerts['close_now']:
+            st.error("🚨 **POSITIONS REQUIRING ACTION (21-50-7 Rule)**")
+            for alert in alerts['close_now']:
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.warning(f"⚠️ {alert['symbol']} ${alert['strike']} - {alert['reason']}")
+                with col2:
+                    st.metric("Profit", f"${alert['current_profit']:.2f} ({alert['profit_pct']:.0%})")
+                with col3:
+                    if st.button(f"Close {alert['symbol']}", key=f"close_{alert['alert_id']}"):
+                        st.info(alert['instructions'])
+        
+        # Show monitoring alerts
+        if alerts['monitor']:
+            with st.expander(f"👀 Positions Under 21 DTE ({len(alerts['monitor'])})"): 
+                for alert in alerts['monitor']:
+                    st.info(f"{alert['symbol']} ${alert['strike']} - {alert['dte']} DTE, "
+                           f"{alert['profit_pct']:.0%} profit - {alert['reason']}")
+        
+        # Summary metrics
+        if alerts['close_now'] or alerts['monitor']:
+            metrics = st.session_state.position_monitor.get_summary_metrics(alerts)
+            st.markdown("---")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Profit Available", f"${metrics['total_profit_available']:,.0f}")
+            with col2:
+                st.metric("At 50% Target", metrics['profit_breakdown']['over_50'])
+            with col3:
+                st.metric("Critical Alerts", metrics['critical_alerts'])
+            with col4:
+                st.metric("Total Monitored", metrics['monitoring_count'])
 
 # Sidebar for portfolio management
 with st.sidebar:
@@ -456,12 +514,13 @@ with col5:
     )
 
 # Main content tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🎯 Opportunities", 
     "📊 Positions", 
     "📜 Trade History", 
     "🐋 Whale Flows",
-    "⚠️ Risk Monitor"
+    "⚠️ Risk Monitor",
+    "🧠 Decision Analysis"
 ])
 
 # Tab 1: Opportunities
@@ -633,6 +692,50 @@ with tab1:
                         st.info(f"🤔 **{commentary['recommendation']}** - {commentary['key_insight']}")
                     
                     st.write(f"**Action:** {commentary['action']}")
+                    
+                    # Decision tracking buttons
+                    decision_col1, decision_col2, decision_col3 = st.columns([1, 1, 3])
+                    
+                    with decision_col1:
+                        if st.button("✅ TAKE", key=f"take_{idx}_{opp['symbol']}_{opp['strike']}"):
+                            notes = st.text_input("Quick note (optional):", key=f"note_take_{idx}")
+                            decision_id = st.session_state.decision_tracker.log_opportunity(
+                                opp, 'TAKE', notes
+                            )
+                            # Also record in trade tracker
+                            trade_id = st.session_state.trade_tracker.record_trade(
+                                symbol=opp['symbol'],
+                                trade_type='covered_call',
+                                strike=opp['strike'], 
+                                expiration=opp['expiration'],
+                                contracts=opp.get('max_contracts', 1),
+                                premium=opp['premium'],
+                                underlying_price=opp['current_price']
+                            )
+                            st.success(f"✅ Recorded TAKE decision for {opp['symbol']} ${opp['strike']}")
+                            st.rerun()
+                    
+                    with decision_col2:
+                        if st.button("❌ PASS", key=f"pass_{idx}_{opp['symbol']}_{opp['strike']}"):
+                            notes = st.text_input("Why passing? (optional):", key=f"note_pass_{idx}")
+                            decision_id = st.session_state.decision_tracker.log_opportunity(
+                                opp, 'PASS', notes
+                            )
+                            st.info(f"❌ Recorded PASS decision for {opp['symbol']} ${opp['strike']}")
+                            st.rerun()
+                    
+                    with decision_col3:
+                        # Show if already decided
+                        recent_decisions = st.session_state.decision_tracker.get_recent_decisions(7)
+                        for decision in recent_decisions:
+                            if (decision['symbol'] == opp['symbol'] and 
+                                decision['strike'] == opp['strike'] and
+                                decision['expiration'] == opp['expiration']):
+                                if decision['decision'] == 'TAKE':
+                                    st.success(f"Previously: TAKEN on {decision['timestamp'][:10]}")
+                                elif decision['decision'] == 'PASS':
+                                    st.info(f"Previously: PASSED on {decision['timestamp'][:10]}")
+                                break
                     
                     # Expandable details
                     with st.expander("View Full Analysis"):
@@ -1729,6 +1832,106 @@ with st.expander("📚 Help & Glossary - Understanding the Metrics"):
     - 21 days left with >25% profit
     - Stock approaching strike price
     """)
+
+# Tab 6: Decision Analysis
+with tab6:
+    st.subheader("🧠 Trade Decision Analysis")
+    
+    # Get statistics
+    stats = st.session_state.decision_tracker.get_statistics()
+    
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Opportunities Shown", stats['total_shown'])
+        st.metric("Take Rate", f"{stats['take_rate']:.1%}")
+    with col2:
+        st.metric("Trades Taken", stats['total_taken'])
+        st.metric("Win Rate", f"{stats['win_rate']:.1%}" if stats['completed_trades'] > 0 else "N/A")
+    with col3:
+        st.metric("Trades Passed", stats['total_passed'])
+        st.metric("Avg Return", f"${stats['avg_return']:.2f}" if stats['completed_trades'] > 0 else "N/A")
+    with col4:
+        st.metric("Completed", stats['completed_trades'])
+        st.metric("Total Return", f"${stats.get('total_return', 0):,.2f}")
+    
+    # Pattern Analysis
+    if stats['completed_trades'] >= 5:
+        st.subheader("📈 Winning Pattern Analysis")
+        patterns = st.session_state.decision_tracker.analyze_patterns()
+        
+        if patterns.get('best_characteristics'):
+            st.success("🏆 Best Performing Characteristics:")
+            for char in patterns['best_characteristics']:
+                st.write(f"- **{char['factor']}** in range {char['range']}: "
+                        f"{char['win_rate']:.0%} win rate ({char['sample_size']} trades)")
+        
+        # Show analysis by factor
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Win Rate by IV Rank:**")
+            if 'by_iv_rank' in patterns and patterns['by_iv_rank'].get('ranges'):
+                for r in patterns['by_iv_rank']['ranges']:
+                    st.write(f"- {r['range']}: {r['win_rate']:.0%} ({r['count']} trades)")
+            
+            st.write("\n**Win Rate by Monthly Yield:**")
+            if 'by_yield' in patterns and patterns['by_yield'].get('ranges'):
+                for r in patterns['by_yield']['ranges']:
+                    st.write(f"- {r['range']}: {r['win_rate']:.0%} ({r['count']} trades)")
+        
+        with col2:
+            st.write("**Win Rate by Delta:**")
+            if 'by_delta' in patterns and patterns['by_delta'].get('ranges'):
+                for r in patterns['by_delta']['ranges']:
+                    st.write(f"- {r['range']}: {r['win_rate']:.0%} ({r['count']} trades)")
+            
+            st.write("\n**Earnings Impact:**")
+            if 'earnings_impact' in patterns:
+                st.write(f"- With earnings: {patterns['earnings_impact']['with_earnings']:.0%}")
+                st.write(f"- No earnings: {patterns['earnings_impact']['without_earnings']:.0%}")
+    
+    # Recent Decisions
+    st.subheader("📅 Recent Decisions (Last 30 Days)")
+    recent = st.session_state.decision_tracker.get_recent_decisions(30)
+    
+    if recent:
+        decision_data = []
+        for d in recent[:20]:  # Show last 20
+            decision_data.append({
+                'Date': d['timestamp'][:10],
+                'Symbol': d['symbol'],
+                'Strike': f"${d['strike']}",
+                'Decision': d['decision'],
+                'Yield': f"{d['monthly_yield']:.1%}",
+                'IV Rank': f"{d.get('iv_rank', 0):.0f}",
+                'Confidence': d['confidence_score'],
+                'Outcome': d.get('outcome', 'Pending'),
+                'Return': f"${d.get('actual_return', 0):.2f}" if d.get('actual_return') else '-'
+            })
+        
+        df = pd.DataFrame(decision_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Pending outcomes
+        pending = st.session_state.decision_tracker.get_pending_outcomes()
+        if pending:
+            st.warning(f"⚠️ {len(pending)} trades need outcome recording")
+            for p in pending:
+                st.write(f"- {p['symbol']} ${p['strike']} exp {p['expiration']} - Taken on {p['timestamp'][:10]}")
+    else:
+        st.info("No trade decisions recorded yet. Start by evaluating opportunities in the Opportunities tab!")
+    
+    # Export functionality
+    if st.button("💾 Export Decision History"):
+        df = pd.DataFrame(st.session_state.decision_tracker.decisions)
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="Download CSV",
+            data=csv,
+            file_name=f"trade_decisions_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
 
 # Footer with key reminders
 st.divider()
