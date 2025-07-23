@@ -166,20 +166,23 @@ class EnhancedWhaleTracker:
         strike = flow.get('strike', 0)
         
         # OTM percentage calculation
-        if flow['option_type'] == 'call':
+        if flow.get('option_type') == 'call':
             otm_pct = ((strike - current_price) / current_price) * 100
         else:  # put
             otm_pct = ((current_price - strike) / current_price) * 100
         
+        # Handle both 'volume' and 'contracts' field names
+        volume = flow.get('contracts', flow.get('volume', 0))
+        
         return {
-            'contracts': flow.get('volume', 0),
-            'total_premium': flow.get('premium_volume', 0),
-            'premium_per_contract': flow.get('premium', 0),
-            'volume_oi_ratio': flow['volume'] / max(flow.get('open_interest', 1), 1),
+            'contracts': volume,
+            'total_premium': flow.get('total_premium', flow.get('premium_volume', 0)),
+            'premium_per_contract': flow.get('premium_per_contract', flow.get('premium', 0)),
+            'volume_oi_ratio': flow.get('volume_oi_ratio', volume / max(flow.get('open_interest', 1), 1)),
             'days_to_exp': flow.get('days_to_exp', 0),
             'otm_percentage': max(0, otm_pct),
-            'bid_ask_spread': flow.get('ask', 0) - flow.get('bid', 0),
-            'spread_percentage': ((flow.get('ask', 0) - flow.get('bid', 0)) / flow.get('ask', 1)) * 100
+            'bid_ask_spread': flow.get('bid_ask_spread', flow.get('ask', 0) - flow.get('bid', 0)),
+            'spread_percentage': ((flow.get('ask', 0) - flow.get('bid', 0)) / max(flow.get('ask', 1), 1)) * 100
         }
     
     def _score_premium(self, premium: float) -> float:

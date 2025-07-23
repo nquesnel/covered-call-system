@@ -1097,7 +1097,7 @@ with tab4:
                             conv_color = "⚪"
                         
                         st.metric("Conviction", f"{conv_color} {conviction}")
-                        st.metric("Vol/OI Ratio", f"{flow['volume'] / max(flow.get('open_interest', 1), 1):.1f}x")
+                        st.metric("Vol/OI Ratio", f"{flow.get('volume_oi_ratio', 0):.1f}x")
                         st.metric("Action", analysis['recommended_action'])
                     
                     with col3:
